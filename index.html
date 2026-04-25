@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>CompraGiusto Materiali</title>
+  <meta name="description" content="Calcola materiali, confezioni, avanzo e costo prima di comprare.">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="CompraGiusto">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="top no-print">
+      <div class="brand">
+        <div class="logo">M</div>
+        <div>
+          <h1>CompraGiusto Materiali</h1>
+          <p id="saveState">Salvataggio automatico attivo</p>
+        </div>
+      </div>
+      <div class="tools">
+        <button class="btn" type="button" id="installBtn" hidden>Installa app</button>
+        <button class="btn" type="button" id="themeBtn">Tema</button>
+        <button class="btn" type="button" id="demoBtn">Esempio</button>
+        <button class="btn" type="button" id="exportBtn">Esporta</button>
+        <button class="btn" type="button" id="importBtn">Importa</button>
+        <button class="btn" type="button" id="printBtn">PDF</button>
+        <button class="btn danger" type="button" id="resetBtn">Reset</button>
+        <input id="importFile" type="file" accept="application/json" hidden>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <span class="tag">App installabile · funziona anche offline</span>
+        <h2>Compra la quantità giusta, anche se la stanza non è perfetta.</h2>
+        <p>Usa metri quadri già noti, rettangolo semplice o superfici da sommare. Il risultato ti dice quante unità comprare, quanto avanza e quanto spenderai.</p>
+      </div>
+      <aside class="why">
+        <b>Problema risolto</b>
+        <p>Comprare “a occhio” fa perdere tempo e soldi: se compri poco blocchi i lavori, se compri troppo ti restano scatole inutili. Qui ogni acquisto parte da un numero.</p>
+      </aside>
+    </section>
+
+    <section class="steps no-print" aria-label="Percorso guidato">
+      <div class="step"><span>1</span><b>Scegli materiale</b><small>pavimento, pittura, posa o battiscopa</small></div>
+      <div class="step"><span>2</span><b>Misura come puoi</b><small>mq noti, rettangolo o superfici sommate</small></div>
+      <div class="step"><span>3</span><b>Aggiungi confezione</b><small>mq, litri, kg o metri per unità</small></div>
+      <div class="step"><span>4</span><b>Compra con un numero</b><small>unità, avanzo e costo stimato</small></div>
+    </section>
+
+    <section class="install-help no-print" id="installHelp">
+      <b>Installazione rapida</b>
+      <span>Android/Desktop: usa “Installa app” quando compare. iPhone/iPad: apri in Safari, tocca Condividi, poi “Aggiungi alla schermata Home”.</span>
+    </section>
+
+    <section class="cards" id="summaryCards"></section>
+
+    <section class="layout">
+      <form class="panel no-print" id="materialForm">
+        <h3>Calcola una voce materiale</h3>
+        <p class="hint">Non forzare la stanza dentro un rettangolo. Scegli il metodo più vicino ai dati che hai.</p>
+
+        <div class="form-grid">
+          <div class="field full">
+            <label for="project">Nome progetto</label>
+            <input id="project" placeholder="Ristrutturazione casa">
+          </div>
+          <div class="field">
+            <label for="room">Ambiente</label>
+            <input id="room" placeholder="Es. bagno principale">
+          </div>
+          <div class="field">
+            <label for="materialName">Materiale / prodotto</label>
+            <input id="materialName" placeholder="Es. gres tortora 60x60">
+          </div>
+          <div class="field full">
+            <label for="materialType">Che cosa devi comprare?</label>
+            <select id="materialType">
+              <option value="tiles">Pavimento o rivestimento a confezioni</option>
+              <option value="paint">Pittura</option>
+              <option value="linear">Battiscopa / profili / cornici</option>
+              <option value="kg">Colla / fugante / rasante</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label for="measureMode">Come vuoi misurare?</label>
+            <select id="measureMode">
+              <option value="known">Conosco già mq o metri</option>
+              <option value="rectangle">Stanza rettangolare</option>
+              <option value="parts">Sommo più superfici o lati</option>
+            </select>
+            <div class="micro">Per stanze irregolari usa “Sommo più superfici”: puoi scrivere 3,2x2,7 oppure 8,5.</div>
+          </div>
+
+          <div class="field full" data-mode="known">
+            <label for="knownAmount" id="knownAmountLabel">Quantità già nota</label>
+            <input id="knownAmount" inputmode="decimal" placeholder="Es. 18,5">
+          </div>
+
+          <div class="field" data-mode="rectangle">
+            <label for="length">Lunghezza m</label>
+            <input id="length" inputmode="decimal" placeholder="3,40">
+          </div>
+          <div class="field" data-mode="rectangle">
+            <label for="width">Larghezza m</label>
+            <input id="width" inputmode="decimal" placeholder="2,20">
+          </div>
+          <div class="field" data-mode="rectangle" data-non-linear="true">
+            <label for="height">Altezza m</label>
+            <input id="height" inputmode="decimal" placeholder="2,70">
+          </div>
+          <div class="field" data-mode="rectangle" data-non-linear="true">
+            <label for="rectangleKind">Area da calcolare</label>
+            <select id="rectangleKind">
+              <option value="floor">Pavimento / soffitto</option>
+              <option value="walls">Pareti</option>
+              <option value="wallsCeiling">Pareti + soffitto</option>
+            </select>
+          </div>
+          <div class="field" data-mode="rectangle" data-non-linear="true">
+            <label for="doors">Porte da sottrarre</label>
+            <input id="doors" inputmode="numeric" placeholder="1">
+          </div>
+          <div class="field" data-mode="rectangle" data-non-linear="true">
+            <label for="windows">Finestre da sottrarre</label>
+            <input id="windows" inputmode="numeric" placeholder="1">
+          </div>
+
+          <div class="field full" data-mode="parts">
+            <label for="partsInput" id="partsLabel">Superfici o lati da sommare</label>
+            <textarea id="partsInput" placeholder="Esempi:&#10;3,2x2,7&#10;1,4x2,7&#10;8,5"></textarea>
+            <div class="micro">Una riga per pezzo. Per superfici usa base×altezza. Per metri lineari scrivi solo i lati.</div>
+          </div>
+
+          <div class="field">
+            <label for="waste">Sfrido %</label>
+            <input id="waste" inputmode="decimal" value="10">
+            <div class="micro">Se non sai cosa mettere, usa 10%. Per formati grandi o tagli difficili valuta 12–15%.</div>
+          </div>
+          <div class="field" data-type="tiles">
+            <label for="packCoverage">Mq per confezione</label>
+            <input id="packCoverage" inputmode="decimal" placeholder="1,44">
+          </div>
+          <div class="field" data-type="paint">
+            <label for="paintYield">Resa mq/litro</label>
+            <input id="paintYield" inputmode="decimal" value="10">
+          </div>
+          <div class="field" data-type="paint">
+            <label for="coats">Numero mani</label>
+            <input id="coats" inputmode="decimal" value="2">
+          </div>
+          <div class="field" data-type="paint">
+            <label for="canLiters">Litri per barattolo</label>
+            <input id="canLiters" inputmode="decimal" value="5">
+          </div>
+          <div class="field" data-type="linear">
+            <label for="pieceLength">Metri per pezzo</label>
+            <input id="pieceLength" inputmode="decimal" placeholder="2,40">
+          </div>
+          <div class="field" data-type="kg">
+            <label for="kgPerSqm">Consumo kg/mq</label>
+            <input id="kgPerSqm" inputmode="decimal" value="4">
+          </div>
+          <div class="field" data-type="kg">
+            <label for="kgPack">Kg per sacco/confezione</label>
+            <input id="kgPack" inputmode="decimal" value="25">
+          </div>
+          <div class="field">
+            <label for="unitPrice">Prezzo unità €</label>
+            <input id="unitPrice" inputmode="decimal" placeholder="52">
+          </div>
+          <div class="field full">
+            <label for="notes">Note utili</label>
+            <textarea id="notes" placeholder="Marca, formato, codice prodotto, negozio, lotto..."></textarea>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" type="submit" id="saveBtn">Salva calcolo</button>
+          <button class="btn" type="button" id="clearBtn">Pulisci</button>
+        </div>
+      </form>
+
+      <section>
+        <div class="result" id="liveResult"></div>
+        <div class="panel todo">
+          <h3>Cosa fare ora</h3>
+          <ul id="todoList"></ul>
+        </div>
+        <div class="panel saved-panel">
+          <h3>Lista d’acquisto</h3>
+          <p class="hint">Calcoli salvati, pronti da stampare o usare in negozio.</p>
+          <div class="list" id="savedList"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
