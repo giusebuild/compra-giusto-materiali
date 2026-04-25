@@ -2,7 +2,7 @@
 'use strict';
 
 const CONFIG = {
-  version: '3.4.0',
+  version: '3.4.2',
   freeLimit: 3,
   gumroadUrl: 'https://giusebuild.gumroad.com/l/compragiusto-materiali-pro',
   verifyEndpoint: '/.netlify/functions/verify-license',
@@ -1017,7 +1017,7 @@ function setupEvents() {
     button.addEventListener('click', () => openStep(Number(button.closest('.stepCard').dataset.step)));
   });
 
-  $('.choice[data-mode]').forEach((button) => {
+  $$('.choice[data-mode]').forEach((button) => {
     button.addEventListener('click', () => {
       setMeasureMode(button.dataset.mode);
       openStep(2);

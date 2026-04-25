@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'compra-giusto-materiali-v3-4-0';
+const CACHE_NAME = 'compra-giusto-materiali-v3-4-2';
 const ASSETS = [
   './',
   './index.html',
