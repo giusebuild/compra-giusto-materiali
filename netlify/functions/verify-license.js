@@ -1,72 +1,140 @@
-exports.handler = async function handler(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json'
+
+const { webcrypto } = require('crypto');
+
+function json(statusCode, payload) {
+  return {
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    },
+    body: JSON.stringify(payload)
   };
+}
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+function base64Url(bytes) {
+  return Buffer.from(bytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlJson(obj) {
+  return base64Url(Buffer.from(JSON.stringify(obj), 'utf8'));
+}
+
+async function sha256Base64Url(value) {
+  const digest = await webcrypto.subtle.digest('SHA-256', Buffer.from(String(value), 'utf8'));
+  return base64Url(Buffer.from(digest));
+}
+
+async function signCertificate(payload) {
+  if (!process.env.LICENSE_PRIVATE_JWK) {
+    throw new Error('LICENSE_PRIVATE_JWK non configurata.');
   }
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ ok: false, message: 'Metodo non consentito.' }) };
-  }
+  const jwk = JSON.parse(process.env.LICENSE_PRIVATE_JWK);
+  const key = await webcrypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  );
 
-  let payload;
-  try {
-    payload = JSON.parse(event.body || '{}');
-  } catch {
-    return { statusCode: 400, headers, body: JSON.stringify({ ok: false, message: 'Richiesta non valida.' }) };
-  }
+  const payloadPart = base64UrlJson(payload);
+  const signature = await webcrypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    Buffer.from(payloadPart, 'utf8')
+  );
 
-  const licenseKey = String(payload.licenseKey || '').trim();
-  const mode = payload.mode === 'check' ? 'check' : 'activate';
+  return `${payloadPart}.${base64Url(Buffer.from(signature))}`;
+}
+
+async function verifyOnGumroad(licenseKey) {
   const productId = process.env.GUMROAD_PRODUCT_ID;
-
   if (!productId) {
-    return { statusCode: 500, headers, body: JSON.stringify({ ok: false, message: 'GUMROAD_PRODUCT_ID non configurato.' }) };
-  }
-
-  if (!licenseKey) {
-    return { statusCode: 400, headers, body: JSON.stringify({ ok: false, message: 'License key mancante.' }) };
+    throw new Error('GUMROAD_PRODUCT_ID non configurato.');
   }
 
   const body = new URLSearchParams();
   body.append('product_id', productId);
   body.append('license_key', licenseKey);
-  body.append('increment_uses_count', mode === 'activate' ? 'true' : 'false');
+  body.append('increment_uses_count', String(process.env.GUMROAD_INCREMENT_USES || 'false'));
+
+  const response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data || !data.success) {
+    return { ok: false, message: 'License key non valida.' };
+  }
+
+  const purchase = data.purchase || {};
+  if (purchase.refunded || purchase.chargebacked || purchase.disputed) {
+    return { ok: false, message: 'Questa licenza non è più attiva.' };
+  }
+
+  const maxUses = Number(process.env.MAX_LICENSE_USES || 0);
+  if (maxUses > 0 && Number(data.uses || 0) > maxUses) {
+    return { ok: false, message: 'Limite attivazioni raggiunto.' };
+  }
+
+  return { ok: true, data, purchase };
+}
+
+exports.handler = async function handler(event) {
+  if (event.httpMethod === 'OPTIONS') return json(200, { ok: true });
+  if (event.httpMethod !== 'POST') return json(405, { ok: false, message: 'Metodo non consentito.' });
 
   try {
-    const response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
-      method: 'POST',
-      body
-    });
+    const request = JSON.parse(event.body || '{}');
+    const licenseKey = String(request.licenseKey || '').trim();
 
-    const data = await response.json();
-
-    if (!data.success) {
-      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, message: 'License key non valida.' }) };
+    if (!licenseKey) {
+      return json(400, { ok: false, message: 'Inserisci una license key.' });
     }
 
-    const purchase = data.purchase || {};
-    if (purchase.refunded || purchase.chargebacked) {
-      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, message: 'Questa licenza non è più attiva.' }) };
+    const gumroad = await verifyOnGumroad(licenseKey);
+    if (!gumroad.ok) {
+      return json(400, gumroad);
     }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        ok: true,
-        license: 'pro',
-        uses: data.uses || null,
-        email: purchase.email || null,
-        productName: purchase.product_name || null
-      })
+    const days = Math.max(1, Number(process.env.LICENSE_CERT_DAYS || 60));
+    const now = new Date();
+    const expires = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    const purchase = gumroad.purchase;
+    const data = gumroad.data;
+
+    const payload = {
+      iss: 'compragiusto-materiali',
+      status: 'pro',
+      productId: process.env.GUMROAD_PRODUCT_ID,
+      licenseHash: await sha256Base64Url(licenseKey),
+      email: purchase.email || null,
+      purchaseId: purchase.id || null,
+      uses: data.uses || 0,
+      issuedAt: now.toISOString(),
+      expiresAt: expires.toISOString()
     };
+
+    const certificate = await signCertificate(payload);
+
+    return json(200, {
+      ok: true,
+      certificate,
+      expiresAt: payload.expiresAt,
+      email: payload.email
+    });
   } catch (error) {
-    return { statusCode: 502, headers, body: JSON.stringify({ ok: false, message: 'Verifica Gumroad non riuscita. Riprova tra poco.' }) };
+    console.error(error);
+    return json(500, {
+      ok: false,
+      message: error.message || 'Errore verifica licenza.'
+    });
   }
 };

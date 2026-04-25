@@ -1,98 +1,95 @@
-# CompraGiusto Materiali — PWA unica con Gumroad License Key
+# CompraGiusto Materiali PWA
 
-Questa versione usa una sola PWA:
+PWA unica Free/Pro con sblocco tramite license key Gumroad.
 
-- parte in modalità Free;
-- limita i salvataggi gratuiti;
-- rimanda a Gumroad per l’acquisto;
-- verifica la license key con una funzione Netlify;
-- sblocca Pro nella stessa PWA.
+## Cosa contiene
 
-## File principali
+- `index.html`
+- `styles.css`
+- `app.js`
+- `license-public-key.js`
+- `manifest.webmanifest`
+- `sw.js`
+- `icons/`
+- `netlify/functions/verify-license.js`
+- `tools/generate-license-keys.js`
 
-```text
-index.html
-styles.css
-app.js
-manifest.webmanifest
-sw.js
-icons/
-netlify/functions/verify-license.js
-netlify.toml
-```
-
-## Prima cosa da cambiare
-
-In `app.js`, sostituisci il link Gumroad:
-
-```js
-const CONFIG = {
-  gumroadUrl: 'https://gumroad.com/l/compra-giusto-materiali'
-};
-```
-
-con il link reale del tuo prodotto.
-
-## Setup Gumroad
-
-1. Crea un prodotto su Gumroad.
-2. Attiva le license key nelle impostazioni del prodotto.
-3. Copia il `product_id` mostrato da Gumroad.
-4. Su Netlify aggiungi una variabile ambiente:
-
-```text
-GUMROAD_PRODUCT_ID=il_tuo_product_id
-```
-
-Il `product_id` resta su Netlify, non dentro la PWA.
-
-## Deploy su Netlify
-
-1. Carica questa cartella su Netlify.
-2. Verifica che Netlify rilevi `netlify.toml`.
-3. Imposta la variabile ambiente `GUMROAD_PRODUCT_ID`.
-4. Fai deploy.
-5. Apri il sito HTTPS.
-
-La funzione sarà disponibile qui:
-
-```text
-/.netlify/functions/verify-license
-```
-
-## Test locale
-
-Per testare la parte UI:
+## Avvio locale semplice
 
 ```bash
 python3 -m http.server 3000
 ```
 
-Poi apri:
+Apri:
 
 ```text
 http://localhost:3000
 ```
 
-La verifica Gumroad completa funziona correttamente quando il progetto è deployato con la funzione Netlify e la variabile ambiente configurata.
+In locale puoi testare UI, calcoli, limite Free, archivio e modal Pro.
+La verifica reale della license key richiede Netlify Functions.
 
-## Modalità Free
+## Genera chiavi licenza
 
-La versione Free consente 3 calcoli salvati.
+Serve una coppia ECDSA:
 
-Blocchi Free:
+```bash
+node tools/generate-license-keys.js --write
+```
 
-- salvataggio oltre 3 calcoli;
-- export backup;
-- report con watermark.
+Il comando:
+1. stampa `LICENSE_PRIVATE_JWK` da mettere su Netlify;
+2. aggiorna `license-public-key.js` con la public key.
 
-## Modalità Pro
+La public key può stare nella PWA. La private key deve stare solo su Netlify.
 
-La versione Pro sblocca:
+## Variabili Netlify
 
-- calcoli illimitati;
-- export backup;
-- report pulito;
-- ri-verifica periodica soft.
+Imposta:
 
-La Pro resta attiva offline dopo l’attivazione. La PWA prova a riverificare la licenza ogni 14 giorni quando internet è disponibile.
+```text
+GUMROAD_PRODUCT_ID=il_product_id_gumroad
+LICENSE_PRIVATE_JWK=valore_generato_dal_tool
+GUMROAD_INCREMENT_USES=false
+MAX_LICENSE_USES=0
+LICENSE_CERT_DAYS=60
+```
+
+Poi redeploy.
+
+## Link Gumroad
+
+In `app.js`, cambia:
+
+```js
+gumroadUrl: 'https://gumroad.com/l/compra-giusto-materiali'
+```
+
+con il tuo link reale.
+
+## Test con Netlify CLI
+
+```bash
+npm install -g netlify-cli
+netlify dev
+```
+
+## Deploy
+
+```bash
+git add .
+git commit -m "Aggiorna CompraGiusto Materiali"
+git push
+```
+
+Netlify farà il deploy automatico se il repo è collegato.
+
+## Aggiornamenti
+
+Ogni update importante cambia versione cache in `sw.js`:
+
+```js
+const CACHE_NAME = 'compra-giusto-materiali-v3-0-1';
+```
+
+Altrimenti il service worker può servire file vecchi.
