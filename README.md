@@ -52,7 +52,7 @@ GUMROAD_PRODUCT_ID=il_product_id_gumroad
 LICENSE_PRIVATE_JWK=valore_generato_dal_tool
 GUMROAD_INCREMENT_USES=false
 MAX_LICENSE_USES=0
-LICENSE_CERT_DAYS=60
+LICENSE_CERT_DAYS=3650
 ```
 
 Poi redeploy.
@@ -93,3 +93,26 @@ const CACHE_NAME = 'compra-giusto-materiali-v3-0-1';
 ```
 
 Altrimenti il service worker può servire file vecchi.
+
+## Form feedback, richieste e strumenti in arrivo
+
+Nel tab **Strumenti** ci sono card per prodotti collegati e una sezione **Segnala o richiedi**.
+
+Per collegare un form unico, crea un modulo Tally / Google Form / Typeform con questi campi consigliati:
+
+- tipo richiesta: problema, strumento in arrivo, nuova app, feedback
+- strumento: CompraGiusto Materiali, Cassa Sicura Cantiere, Spese Sotto Controllo, Scelte Finiture, Altro
+- messaggio
+- email
+- priorità
+- fase della ristrutturazione
+
+Poi in `app.js` imposta:
+
+```js
+feedbackUrl: 'https://tally.so/r/TUO_FORM_ID'
+```
+
+I pulsanti **Avvisami**, **Segnala problema** e **Proponi app** apriranno quel form passando alcuni parametri in query string (`tipo`, `strumento`, `origine`).
+
+Se `feedbackUrl` resta vuoto, i pulsanti mostrano un messaggio non bloccante e l'app continua a funzionare.

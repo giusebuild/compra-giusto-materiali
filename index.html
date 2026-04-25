@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=3.2.0">
+  <link rel="stylesheet" href="./styles.css?v=3.4.0">
   <script src="./license-public-key.js"></script>
   <title>CompraGiusto Materiali</title>
 </head>
@@ -287,8 +287,20 @@
     <section id="toolsPanel" class="tabPanel" data-panel="tools">
       <div class="card">
         <h3>Altri strumenti utili</h3>
-        <p class="sub">La quantità è solo un pezzo. Qui trovi gli altri prodotti collegati, con valore chiaro e senza banner invasivi.</p>
+        <p class="sub">La quantità è solo il primo pezzo. Stiamo preparando strumenti pratici per cassa, spese e finiture durante la ristrutturazione.</p>
         <div id="toolsGrid" class="toolsGrid"></div>
+
+        <div class="feedbackPanel">
+          <div>
+            <span class="badge eyebrow">Feedback e richieste</span>
+            <h3>Serve altro?</h3>
+            <p>Segnala un problema, richiedi uno strumento in arrivo o proponi una nuova app utile per la ristrutturazione.</p>
+          </div>
+          <div class="feedbackActions">
+            <button class="btn soft" type="button" data-feedback-action="problema" data-feedback-tool="CompraGiusto Materiali" data-feedback-origin="tab-strumenti">Segnala problema</button>
+            <button class="btn primary" type="button" data-feedback-action="nuova-app" data-feedback-tool="Nuova app ristrutturazione" data-feedback-origin="tab-strumenti">Proponi app</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -325,7 +337,7 @@
     <button id="bottomProBtn" class="btn primary small" type="button">Sblocca Pro</button>
   </div>
 
-  <script src="./app.js?v=3.2.0"></script>
+  <script src="./app.js?v=3.4.0"></script>
   <script>
     document.addEventListener('click', function(event) {
       const link = event.target.closest('[data-tab-link]');

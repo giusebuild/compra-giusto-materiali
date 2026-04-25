@@ -104,7 +104,7 @@ exports.handler = async function handler(event) {
       return json(400, gumroad);
     }
 
-    const days = Math.max(1, Number(process.env.LICENSE_CERT_DAYS || 60));
+    const days = Math.max(1, Number(process.env.LICENSE_CERT_DAYS || 3650));
     const now = new Date();
     const expires = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     const purchase = gumroad.purchase;

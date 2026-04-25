@@ -2,12 +2,15 @@
 'use strict';
 
 const CONFIG = {
-  version: '3.2.0',
+  version: '3.4.0',
   freeLimit: 3,
-  gumroadUrl: 'https://gumroad.com/l/compra-giusto-materiali',
+  gumroadUrl: 'https://giusebuild.gumroad.com/l/compragiusto-materiali-pro',
   verifyEndpoint: '/.netlify/functions/verify-license',
   publicJwk: window.COMPRA_GIUSTO_LICENSE_PUBLIC_JWK || null,
-  recheckDays: 14,
+  recheckDays: 30,
+  // Inserisci qui il link del form unico (Tally/Google Form/Typeform).
+  // Esempio: 'https://tally.so/r/ABC123'
+  feedbackUrl: 'https://tally.so/r/EkBJJB',
   toolLinks: {
     cash: '',
     expenses: '',
@@ -242,7 +245,7 @@ function parseParts(text) {
   let total = 0;
 
   rows.forEach((row) => {
-    const normalized = row.toLowerCase().replace(',', '.').replace(/\s/g, '');
+    const normalized = row.toLowerCase().replace(/,/g, '.').replace(/\s/g, '');
     const match = normalized.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
     if (match) {
       total += Number(match[1]) * Number(match[2]);
@@ -769,6 +772,35 @@ function renderArchive() {
   $$('[data-delete]', list).forEach((button) => button.addEventListener('click', () => deleteItem(button.dataset.delete)));
 }
 
+function feedbackUrl(params = {}) {
+  const base = CONFIG.feedbackUrl || '';
+  if (!base || base === '#') return '';
+  try {
+    const currentHref = window.location?.href || (typeof location !== 'undefined' ? location.href : 'https://app.local/');
+    const url = new URL(base, currentHref);
+    const enrichedParams = {
+      versione: CONFIG.version,
+      ...params
+    };
+    Object.entries(enrichedParams).forEach(([key, value]) => {
+      if (value) url.searchParams.set(key, value);
+    });
+    return url.toString();
+  } catch (error) {
+    console.warn('Feedback URL non valido', error);
+    return base;
+  }
+}
+
+function openFeedback(params = {}) {
+  const url = feedbackUrl(params);
+  if (!url) {
+    toast('Modulo richieste non ancora collegato.');
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
 function renderTools() {
   const tools = [
     {
@@ -776,27 +808,27 @@ function renderTools() {
       icon: '€',
       eyebrow: 'Cassa e pagamenti',
       title: 'Cassa Sicura Cantiere',
-      text: 'Dopo aver stimato i materiali, controlla se quei pagamenti cadono nel mese giusto e se la liquidità regge.',
+      text: 'Capisci se i pagamenti previsti ti lasciano abbastanza liquidità mese per mese.',
       bullets: ['mese fragile', 'gap da coprire', 'pagamenti da spostare'],
-      cta: 'Apri Cassa'
+      interest: 'Cassa Sicura Cantiere'
     },
     {
       key: 'expenses',
       icon: 'S',
       eyebrow: 'Acquisti reali',
       title: 'Spese Sotto Controllo',
-      text: 'Quando compri davvero, confronta budget previsto, prezzo reale, ordini, consegne e sforamenti.',
+      text: 'Segna cosa hai comprato, cosa manca e dove il budget sta scappando.',
       bullets: ['budget vs reale', 'mancanti', 'pagato non consegnato'],
-      cta: 'Apri Spese'
+      interest: 'Spese Sotto Controllo'
     },
     {
       key: 'finishes',
       icon: 'F',
       eyebrow: 'Colori e prodotti',
       title: 'Scelte Finiture',
-      text: 'Trasforma palette, materiali e moodboard in una distinta acquistabile con codici, brand e stato.',
+      text: 'Organizza colori, materiali, codici prodotto e stato delle scelte.',
       bullets: ['codici prodotto', 'ambienti incompleti', 'scelte pronte'],
-      cta: 'Apri Finiture'
+      interest: 'Scelte Finiture'
     }
   ];
 
@@ -805,7 +837,7 @@ function renderTools() {
 
   grid.innerHTML = tools.map((tool) => {
     const href = CONFIG.toolLinks[tool.key] || '';
-    const disabled = !href || href === '#';
+    const hasProductLink = href && href !== '#';
     return `
       <article class="toolCard">
         <div class="toolCardTop">
@@ -819,12 +851,20 @@ function renderTools() {
         <div class="toolBullets">
           ${tool.bullets.map((bullet) => `<span>${safe(bullet)}</span>`).join('')}
         </div>
-        ${disabled
-          ? `<button class="btn soft" type="button" disabled>Collega quando pronto</button>`
-          : `<a class="btn soft" href="${safe(href)}">${safe(tool.cta)}</a>`}
+        ${hasProductLink
+          ? `<a class="btn soft" href="${safe(href)}" target="_blank" rel="noopener">Apri strumento</a>`
+          : `<button class="btn soft" type="button" data-feedback-type="tool" data-feedback-tool="${safe(tool.interest)}">Avvisami</button>`}
       </article>
     `;
   }).join('');
+
+  $$('[data-feedback-type]', grid).forEach((button) => {
+    button.addEventListener('click', () => openFeedback({
+      tipo: button.dataset.feedbackType,
+      strumento: button.dataset.feedbackTool || '',
+      origine: 'tab-strumenti'
+    }));
+  });
 }
 
 function exportBackup() {
@@ -977,10 +1017,16 @@ function setupEvents() {
     button.addEventListener('click', () => openStep(Number(button.closest('.stepCard').dataset.step)));
   });
 
-  $$('.choice[data-mode]').forEach((button) => {
+  $('.choice[data-mode]').forEach((button) => {
     button.addEventListener('click', () => {
       setMeasureMode(button.dataset.mode);
-      openStep(3);
+      openStep(2);
+      const target = button.dataset.mode === 'parts'
+        ? 'parts'
+        : button.dataset.mode === 'known'
+          ? 'quantity'
+          : 'length';
+      window.setTimeout(() => focusField(target), 80);
     });
   });
 
@@ -1062,6 +1108,14 @@ function setupEvents() {
   });
   $('activateBtn').addEventListener('click', activateLicense);
   $('buyBtn').addEventListener('click', () => window.open(CONFIG.gumroadUrl, '_blank', 'noopener'));
+
+  $$('[data-feedback-action]').forEach((button) => {
+    button.addEventListener('click', () => openFeedback({
+      tipo: button.dataset.feedbackAction,
+      strumento: button.dataset.feedbackTool || 'CompraGiusto Materiali',
+      origine: button.dataset.feedbackOrigin || 'app'
+    }));
+  });
 
   $('themeBtn').addEventListener('click', () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
