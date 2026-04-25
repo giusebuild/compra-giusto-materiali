@@ -1,58 +1,87 @@
-'use strict';
+const CONFIG = {
+  appVersion: '1.0.0-license',
+  freeLimit: 3,
+  gumroadUrl: 'https://gumroad.com/l/compra-giusto-materiali',
+  verifyEndpoint: '/.netlify/functions/verify-license',
+  recheckDays: 14
+};
 
-const KEY = 'compra_giusto_materiali_pwa_v1';
-let deferredInstallPrompt = null;
-let state = loadState();
-let editingId = null;
+const STORAGE_KEY = 'cg_materiali_state_v1';
+const LICENSE_KEY = 'cg_materiali_license_v1';
 
 const $ = (id) => document.getElementById(id);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
-function parseNumber(value) {
+const defaults = {
+  items: [],
+  theme: 'light'
+};
+
+let state = loadState();
+let license = loadLicense();
+let editingId = null;
+
+function loadState() {
+  try { return { ...defaults, ...(JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}) }; }
+  catch { return { ...defaults }; }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  render();
+}
+
+function loadLicense() {
+  try { return JSON.parse(localStorage.getItem(LICENSE_KEY)) || { status: 'free' }; }
+  catch { return { status: 'free' }; }
+}
+
+function saveLicense(next) {
+  license = next;
+  localStorage.setItem(LICENSE_KEY, JSON.stringify(license));
+  render();
+}
+
+function isPro() {
+  return license && license.status === 'pro';
+}
+
+function numberFromInput(value) {
   if (value === null || value === undefined) return 0;
-  const cleaned = String(value).trim().replace(/\./g, '').replace(',', '.');
-  const n = Number.parseFloat(cleaned);
-  return Number.isFinite(n) ? n : 0;
+  const clean = String(value).trim().replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, '');
+  const valueNumber = parseFloat(clean);
+  return Number.isFinite(valueNumber) ? valueNumber : 0;
 }
 
-function formatNumber(value, decimals = 2) {
-  return new Intl.NumberFormat('it-IT', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  }).format(Number(value) || 0);
-}
-
-function money(value) {
+function euro(value) {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(value) || 0);
 }
 
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function formatNumber(value, decimals = 2) {
+  return new Intl.NumberFormat('it-IT', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value) || 0);
 }
 
 function escapeHtml(value) {
-  return String(value || '').replace(/[&<>"']/g, (char) => ({
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
   }[char]));
 }
 
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY));
-    if (saved && Array.isArray(saved.items)) return saved;
-  } catch (error) {}
-  return { project: '', items: [] };
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-function saveState() {
-  state.project = $('project').value.trim();
-  localStorage.setItem(KEY, JSON.stringify(state));
-  const status = $('saveState');
-  status.textContent = 'Salvato ora';
-  setTimeout(() => { status.textContent = 'Salvataggio automatico attivo'; }, 1200);
+function parsePieces(text) {
+  return String(text || '').split(/\n+/).reduce((total, rawLine) => {
+    const line = rawLine.trim().replace(',', '.');
+    if (!line) return total;
+    const match = line.match(/^([0-9.]+)\s*[xX*]\s*([0-9.]+)$/);
+    if (match) return total + (parseFloat(match[1]) * parseFloat(match[2]));
+    return total + numberFromInput(line);
+  }, 0);
 }
 
-function getMaterialLabel(type) {
+function materialLabel(type) {
   return {
     tiles: 'Pavimento / rivestimento',
     paint: 'Pittura',
@@ -61,346 +90,380 @@ function getMaterialLabel(type) {
   }[type] || type;
 }
 
-function getUnitLabel(type) {
+function unitLabel(type) {
   return {
     tiles: 'confezioni',
     paint: 'barattoli',
     linear: 'pezzi',
-    kg: 'sacchi/confezioni'
+    kg: 'confezioni'
   }[type] || 'unità';
 }
 
-function parseParts(text, type) {
-  return String(text || '')
-    .split(/\n+/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .reduce((total, line) => {
-      const normalized = line.replace(',', '.');
-      const match = normalized.match(/^([0-9.]+)\s*[xX*]\s*([0-9.]+)$/);
-      if (match) return total + parseFloat(match[1]) * parseFloat(match[2]);
-      return total + parseNumber(line);
-    }, 0);
+function quantityLabel(type) {
+  return {
+    tiles: 'mq',
+    paint: 'litri',
+    linear: 'm',
+    kg: 'kg'
+  }[type] || 'unità';
 }
 
-function calculateBaseAmount() {
+function baseAmountFromForm() {
   const type = $('materialType').value;
   const mode = $('measureMode').value;
 
-  if (mode === 'known') return parseNumber($('knownAmount').value);
-  if (mode === 'parts') return parseParts($('partsInput').value, type);
+  if (mode === 'known') return numberFromInput($('knownAmount').value);
+  if (mode === 'parts') return parsePieces($('parts').value);
+  if (mode === 'walls') return Math.max(0, parsePieces($('walls').value) - numberFromInput($('wallOpenings').value));
 
-  const length = parseNumber($('length').value);
-  const width = parseNumber($('width').value);
+  const length = numberFromInput($('length').value);
+  const width = numberFromInput($('width').value);
+  const height = numberFromInput($('height').value);
+  const openings = numberFromInput($('openings').value);
 
-  if (type === 'linear') return Math.max(0, 2 * (length + width));
+  if (type === 'linear') return Math.max(0, 2 * (length + width) - openings);
+  if (type === 'paint') return Math.max(0, (2 * (length + width) * height + length * width) - openings);
+  if (type === 'tiles' || type === 'kg') return Math.max(0, length * width);
 
-  const height = parseNumber($('height').value);
-  const rectangleKind = $('rectangleKind').value;
-  const doorsArea = parseNumber($('doors').value) * 0.8 * 2.1;
-  const windowsArea = parseNumber($('windows').value) * 1.2 * 1.2;
-
-  if (rectangleKind === 'floor') return Math.max(0, length * width);
-  if (rectangleKind === 'walls') return Math.max(0, 2 * (length + width) * height - doorsArea - windowsArea);
-  if (rectangleKind === 'wallsCeiling') return Math.max(0, 2 * (length + width) * height + length * width - doorsArea - windowsArea);
-
-  return 0;
+  return Math.max(0, length * width);
 }
 
-function getCurrentInput() {
+function formData() {
   return {
     id: editingId || uid(),
-    project: $('project').value.trim(),
-    room: $('room').value.trim() || 'Ambiente senza nome',
-    materialName: $('materialName').value.trim() || getMaterialLabel($('materialType').value),
+    room: $('room').value.trim(),
     materialType: $('materialType').value,
     measureMode: $('measureMode').value,
-    baseAmount: calculateBaseAmount(),
-    waste: parseNumber($('waste').value),
-    packCoverage: parseNumber($('packCoverage').value),
-    paintYield: parseNumber($('paintYield').value),
-    coats: parseNumber($('coats').value) || 1,
-    canLiters: parseNumber($('canLiters').value),
-    pieceLength: parseNumber($('pieceLength').value),
-    kgPerSqm: parseNumber($('kgPerSqm').value),
-    kgPack: parseNumber($('kgPack').value),
-    unitPrice: parseNumber($('unitPrice').value),
+    baseAmount: baseAmountFromForm(),
+    waste: numberFromInput($('waste').value),
+    packMq: numberFromInput($('packMq').value),
+    paintYield: numberFromInput($('paintYield').value),
+    canLiters: numberFromInput($('canLiters').value),
+    coats: numberFromInput($('coats').value) || 1,
+    pieceMeters: numberFromInput($('pieceMeters').value),
+    kgPerMq: numberFromInput($('kgPerMq').value),
+    kgPack: numberFromInput($('kgPack').value),
+    price: numberFromInput($('price').value),
     notes: $('notes').value.trim(),
-    savedAt: new Date().toISOString()
+    createdAt: new Date().toISOString()
   };
 }
 
-function calculate(item) {
+function compute(item) {
   const type = item.materialType;
   const base = Number(item.baseAmount) || 0;
-  const wasteMultiplier = 1 + (Number(item.waste) || 0) / 100;
-
+  const wasteMultiplier = 1 + ((Number(item.waste) || 0) / 100);
   let need = base * wasteMultiplier;
   let units = 0;
   let bought = 0;
-  let cost = 0;
-  let measureLabel = type === 'linear' ? 'm' : 'mq';
-
-  if (type === 'tiles') {
-    const pack = Number(item.packCoverage) || 0;
-    units = pack > 0 ? Math.ceil(need / pack) : 0;
-    bought = units * pack;
-  }
+  let unit = unitLabel(type);
+  let qLabel = quantityLabel(type);
 
   if (type === 'paint') {
-    const litersNeeded = base * (Number(item.coats) || 1) / (Number(item.paintYield) || 1);
-    need = litersNeeded;
-    const can = Number(item.canLiters) || 0;
-    units = can > 0 ? Math.ceil(litersNeeded / can) : 0;
-    bought = units * can;
-    measureLabel = 'l';
+    need = (base * (Number(item.coats) || 1)) / (Number(item.paintYield) || 1);
+    units = Math.ceil(need / (Number(item.canLiters) || 1));
+    bought = units * (Number(item.canLiters) || 0);
+  } else if (type === 'linear') {
+    units = Math.ceil(need / (Number(item.pieceMeters) || 1));
+    bought = units * (Number(item.pieceMeters) || 0);
+  } else if (type === 'kg') {
+    need = base * (Number(item.kgPerMq) || 0) * wasteMultiplier;
+    units = Math.ceil(need / (Number(item.kgPack) || 1));
+    bought = units * (Number(item.kgPack) || 0);
+  } else {
+    units = Math.ceil(need / (Number(item.packMq) || 1));
+    bought = units * (Number(item.packMq) || 0);
   }
 
-  if (type === 'linear') {
-    const piece = Number(item.pieceLength) || 0;
-    units = piece > 0 ? Math.ceil(need / piece) : 0;
-    bought = units * piece;
-    measureLabel = 'm';
-  }
-
-  if (type === 'kg') {
-    const kgNeeded = base * (Number(item.kgPerSqm) || 0) * wasteMultiplier;
-    need = kgNeeded;
-    const packKg = Number(item.kgPack) || 0;
-    units = packKg > 0 ? Math.ceil(kgNeeded / packKg) : 0;
-    bought = units * packKg;
-    measureLabel = 'kg';
-  }
-
-  cost = units * (Number(item.unitPrice) || 0);
+  const cost = units * (Number(item.price) || 0);
   const extra = Math.max(0, bought - need);
 
-  return {
-    base,
-    need,
-    units,
-    bought,
-    cost,
-    extra,
-    unitLabel: getUnitLabel(type),
-    measureLabel
-  };
+  return { base, need, units, bought, extra, cost, unit, qLabel };
+}
+
+function canSaveMore() {
+  return isPro() || state.items.length < CONFIG.freeLimit || editingId;
+}
+
+function remainingFreeUses() {
+  return Math.max(0, CONFIG.freeLimit - state.items.length);
+}
+
+function showUpgradeModal(message) {
+  $('licenseModal').classList.remove('hidden');
+  $('licenseMessage').className = 'licenseMessage';
+  $('licenseMessage').textContent = message || 'Inserisci la license key ricevuta dopo l’acquisto.';
+  setTimeout(() => $('licenseKeyInput').focus(), 50);
+}
+
+function hideUpgradeModal() {
+  $('licenseModal').classList.add('hidden');
+  $('licenseKeyInput').value = '';
+  $('licenseMessage').textContent = '';
 }
 
 function updateVisibility() {
-  const type = $('materialType').value;
   const mode = $('measureMode').value;
+  const type = $('materialType').value;
 
-  $$('[data-mode]').forEach(el => el.classList.toggle('hidden', el.dataset.mode !== mode));
-  $$('[data-type]').forEach(el => el.classList.toggle('hidden', el.dataset.type !== type));
-  $$('[data-non-linear]').forEach(el => el.classList.toggle('hidden', type === 'linear' || mode !== 'rectangle'));
+  $$('.measureBlock').forEach((block) => block.classList.toggle('hidden', block.dataset.mode !== mode));
+  $$('.typeField').forEach((field) => field.classList.toggle('hidden', field.dataset.type !== type));
 
-  $('knownAmountLabel').textContent = type === 'linear' ? 'Metri lineari già noti' : 'Metri quadri già noti';
-  $('partsLabel').textContent = type === 'linear' ? 'Lati da sommare in metri' : 'Superfici da sommare in mq';
+  const showWallRect = mode === 'rect' && (type === 'paint');
+  $$('.wallOnly').forEach((el) => el.classList.toggle('hidden', !showWallRect));
 
-  renderLive();
+  const showWallMeasure = mode === 'walls';
+  $$('.wallMeasureOnly').forEach((el) => el.classList.toggle('hidden', !showWallMeasure));
+
+  const knownLabel = type === 'linear' ? 'Metri lineari già noti' : 'Metri quadri già noti';
+  $('knownLabel').textContent = knownLabel;
+
+  renderLiveResult();
 }
 
-function renderSummary() {
-  const totals = state.items.reduce((acc, item) => {
-    const c = calculate(item);
-    acc.count += 1;
-    acc.units += c.units;
-    acc.cost += c.cost;
-    acc.extra += c.extra;
-    if (c.base > 0 && c.extra / Math.max(c.need, 1) > 0.25) acc.highWaste += 1;
-    return acc;
-  }, { count: 0, units: 0, cost: 0, extra: 0, highWaste: 0 });
+function renderLicense() {
+  document.body.classList.toggle('free-mode', !isPro());
+  $('buyBtn').href = CONFIG.gumroadUrl;
+  $('buyBtnModal').href = CONFIG.gumroadUrl;
 
-  $('summaryCards').innerHTML = `
-    <div class="metric"><small>Calcoli salvati</small><strong>${totals.count}</strong><em>voci materiale</em></div>
-    <div class="metric"><small>Unità da comprare</small><strong>${formatNumber(totals.units, 0)}</strong><em>confezioni, pezzi o sacchi</em></div>
-    <div class="metric"><small>Costo stimato</small><strong>${money(totals.cost)}</strong><em>totale lista</em></div>
-    <div class="metric ${totals.highWaste ? 'warn' : 'ok'}"><small>Avanzi alti</small><strong>${totals.highWaste}</strong><em>da ricontrollare</em></div>
+  if (isPro()) {
+    $('editionLabel').textContent = 'Pro attiva';
+    $('statusBadge').textContent = 'Pro';
+    $('statusBadge').classList.add('pro');
+    $('licenseTitle').textContent = 'Versione completa attiva';
+    $('licenseText').textContent = 'Calcoli illimitati, export backup e report senza watermark.';
+    $('buyBtn').classList.add('hidden');
+    $('activateBtn').textContent = 'Licenza attiva';
+  } else {
+    const left = remainingFreeUses();
+    $('editionLabel').textContent = `Free · ${left} calcoli gratuiti rimasti`;
+    $('statusBadge').textContent = 'Free';
+    $('statusBadge').classList.remove('pro');
+    $('licenseTitle').textContent = `${left} calcoli gratuiti rimasti`;
+    $('licenseText').textContent = 'La Pro sblocca calcoli illimitati, export backup e report senza watermark.';
+    $('buyBtn').classList.remove('hidden');
+    $('activateBtn').textContent = 'Attiva Pro';
+  }
+}
+
+function renderMetrics() {
+  let totalCost = 0;
+  let totalUnits = 0;
+  let totalBase = 0;
+  let riskyWaste = 0;
+
+  state.items.forEach((item) => {
+    const calc = compute(item);
+    totalCost += calc.cost;
+    totalUnits += calc.units;
+    totalBase += calc.base;
+    if (calc.base > 0 && calc.extra > calc.base * 0.25) riskyWaste += 1;
+  });
+
+  $('metrics').innerHTML = `
+    <article class="metric"><small>Calcoli salvati</small><strong>${state.items.length}</strong><em>${isPro() ? 'illimitati' : `${remainingFreeUses()} free rimasti`}</em></article>
+    <article class="metric"><small>Costo stimato</small><strong>${euro(totalCost)}</strong><em>somma materiali</em></article>
+    <article class="metric"><small>Unità da comprare</small><strong>${totalUnits}</strong><em>confezioni, pezzi o sacchi</em></article>
+    <article class="metric ${riskyWaste ? 'warn' : 'ok'}"><small>Avanzi alti</small><strong>${riskyWaste}</strong><em>controlla prima di ordinare</em></article>
   `;
 }
 
-function renderLive() {
-  const item = getCurrentInput();
-  const c = calculate(item);
-  const hasBase = c.base > 0;
-  const hasUnit = c.units > 0;
-  const extraRatio = c.need > 0 ? c.extra / c.need : 0;
-  const status = !hasBase ? 'warn' : extraRatio > 0.25 ? 'warn' : 'ok';
+function renderLiveResult() {
+  const item = formData();
+  const calc = compute(item);
+  const hasBase = calc.base > 0;
+  const missingUnit = hasBase && calc.units <= 0;
+  const extraRatio = calc.need > 0 ? calc.extra / calc.need : 0;
+  const statusClass = !hasBase || missingUnit ? 'warn' : extraRatio > 0.25 ? 'warn' : 'ok';
+  const big = hasBase && !missingUnit ? `${calc.units} ${calc.unit}` : 'Inserisci i dati';
 
-  $('liveResult').innerHTML = `
+  $('resultPanel').innerHTML = `
     <h3>Risultato immediato</h3>
-    <p class="hint">Si aggiorna mentre compili.</p>
-    <div class="answer ${status}">${hasUnit ? `Compra ${c.units} ${c.unitLabel}` : 'Inserisci confezione e misura'}</div>
-    <div class="mini-grid">
-      <div class="mini"><small>Quantità reale</small><b>${formatNumber(c.base, 2)} ${item.materialType === 'linear' ? 'm' : 'mq'}</b></div>
-      <div class="mini"><small>Da coprire</small><b>${formatNumber(c.need, 2)} ${c.measureLabel}</b></div>
-      <div class="mini"><small>Acquistato</small><b>${formatNumber(c.bought, 2)} ${c.measureLabel}</b></div>
-      <div class="mini"><small>Costo</small><b>${money(c.cost)}</b></div>
+    <p>Si aggiorna mentre compili.</p>
+    <div class="bigResult ${statusClass}">${big}</div>
+    <div class="miniGrid">
+      <div class="mini"><small>Base</small><b>${formatAmount(calc.base, item.materialType, 'base')}</b></div>
+      <div class="mini"><small>Da coprire</small><b>${formatAmount(calc.need, item.materialType, 'need')}</b></div>
+      <div class="mini"><small>Acquistato</small><b>${formatAmount(calc.bought, item.materialType, 'need')}</b></div>
+      <div class="mini"><small>Costo</small><b>${euro(calc.cost)}</b></div>
     </div>
-    <div class="callout ${status}">
-      ${hasBase ? `Avanzo stimato: <b>${formatNumber(c.extra, 2)} ${c.measureLabel}</b>. ${extraRatio > 0.25 ? 'Sembra alto: controlla sfrido e dimensione confezione.' : 'Margine leggibile.'}` : 'Parti dalla misura che hai davvero: mq già noti, rettangolo o superfici da sommare.'}
-    </div>
+    <div class="callout ${statusClass}">${resultMessage(item, calc)}</div>
   `;
 
-  renderTodo(item, c);
+  renderTodo(item, calc);
 }
 
-function renderTodo(item, c) {
-  const list = [];
-  if (c.base <= 0) list.push('Inserisci una misura maggiore di zero. Per stanze irregolari usa “Sommo più superfici”.');
-  if (item.materialType === 'tiles' && item.packCoverage <= 0) list.push('Inserisci i mq per confezione: li trovi su scheda prodotto, scatola o sito del venditore.');
-  if (item.materialType === 'paint' && (item.paintYield <= 0 || item.canLiters <= 0)) list.push('Per la pittura servono resa mq/litro e litri per barattolo.');
-  if (item.materialType === 'linear' && item.pieceLength <= 0) list.push('Per battiscopa o profili serve la lunghezza del pezzo.');
-  if (item.materialType === 'kg' && (item.kgPerSqm <= 0 || item.kgPack <= 0)) list.push('Per colla/fugante servono consumo kg/mq e kg per confezione.');
-  if (item.waste < 5 && item.materialType !== 'paint') list.push('Sfrido molto basso: se ci sono tagli o formati grandi valuta 10–15%.');
-  if (c.need > 0 && c.extra / c.need > 0.25) list.push('Avanzo oltre il 25%: prima di ordinare controlla confezione, sfrido e metodo di misura.');
-  if (!list.length) list.push('Salva il calcolo e usalo come lista d’acquisto prima di ordinare.');
-
-  $('todoList').innerHTML = list.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+function formatAmount(value, type, mode) {
+  if (type === 'paint' && mode === 'need') return `${formatNumber(value, 2)} l`;
+  if (type === 'kg' && mode === 'need') return `${formatNumber(value, 1)} kg`;
+  if (type === 'linear') return `${formatNumber(value, 2)} m`;
+  return `${formatNumber(value, 2)} mq`;
 }
 
-function renderSavedList() {
+function resultMessage(item, calc) {
+  if (calc.base <= 0) return 'Parti dalla misura che conosci: mq già noti, rettangolo, superfici da sommare o pareti singole.';
+  if (calc.units <= 0) return 'Manca il dato della confezione: mq per confezione, litri, kg o metri per pezzo.';
+  if (calc.extra > calc.need * 0.25) return 'Avanzo alto: controlla confezione e sfrido prima di ordinare.';
+  return `Compra ${calc.units} ${calc.unit}. Prima di ordinare verifica sempre il dato sulla confezione reale.`;
+}
+
+function renderTodo(item, calc) {
+  const tips = [];
+
+  if (calc.base <= 0) tips.push('Inserisci una quantità maggiore di zero. Se la stanza è irregolare, usa “sommo più pezzi”.');
+  if (item.materialType === 'tiles' && !item.packMq) tips.push('Aggiungi i mq per confezione: li trovi sulla scheda prodotto o sulla scatola.');
+  if (item.materialType === 'paint' && (!item.paintYield || !item.canLiters)) tips.push('Per la pittura servono resa mq/litro e litri per barattolo.');
+  if (item.materialType === 'kg' && (!item.kgPerMq || !item.kgPack)) tips.push('Per colle/fuganti servono consumo kg/mq e kg per confezione.');
+  if (calc.base > 0 && calc.extra > calc.need * 0.25) tips.push('L’avanzo è alto: prova a ridurre sfrido o verifica se esistono confezioni più piccole.');
+  if (!tips.length) tips.push('Salva il calcolo e usalo come lista d’acquisto prima di andare in negozio.');
+  if (!isPro() && remainingFreeUses() <= 1) tips.push('Stai finendo i calcoli gratuiti: la Pro sblocca salvataggi illimitati.');
+
+  $('todoList').innerHTML = tips.map((tip) => `<li>${escapeHtml(tip)}</li>`).join('');
+}
+
+function renderItems() {
   if (!state.items.length) {
-    $('savedList').innerHTML = '<div class="empty">Nessun calcolo salvato. Aggiungi un materiale: otterrai unità da comprare, avanzo e costo stimato.</div>';
+    $('itemsList').innerHTML = '<div class="empty">Nessun calcolo salvato. Aggiungi il primo materiale per ottenere quantità, avanzo e costo.</div>';
     return;
   }
 
-  $('savedList').innerHTML = state.items.map(item => {
-    const c = calculate(item);
+  $('itemsList').innerHTML = state.items.map((item) => {
+    const calc = compute(item);
     return `
       <article class="item">
-        <div class="item-head">
+        <div class="itemHead">
           <div>
-            <h4>${escapeHtml(item.room)} · ${escapeHtml(item.materialName)}</h4>
-            <p>${getMaterialLabel(item.materialType)}${item.notes ? ' · ' + escapeHtml(item.notes) : ''}</p>
+            <h4>${escapeHtml(item.room || 'Ambiente senza nome')}</h4>
+            <p>${materialLabel(item.materialType)}${item.notes ? ' · ' + escapeHtml(item.notes) : ''}</p>
           </div>
-          <span class="pill">${c.units} ${c.unitLabel}</span>
+          <span class="pill">${calc.units} ${calc.unit}</span>
         </div>
-        <div class="mini-grid">
-          <div class="mini"><small>Reale</small><b>${formatNumber(c.base, 2)} ${item.materialType === 'linear' ? 'm' : 'mq'}</b></div>
-          <div class="mini"><small>Da coprire</small><b>${formatNumber(c.need, 2)} ${c.measureLabel}</b></div>
-          <div class="mini"><small>Avanzo</small><b>${formatNumber(c.extra, 2)} ${c.measureLabel}</b></div>
-          <div class="mini"><small>Costo</small><b>${money(c.cost)}</b></div>
+        <div class="miniGrid">
+          <div class="mini"><small>Base</small><b>${formatAmount(calc.base, item.materialType, 'base')}</b></div>
+          <div class="mini"><small>Da coprire</small><b>${formatAmount(calc.need, item.materialType, 'need')}</b></div>
+          <div class="mini"><small>Avanzo</small><b>${formatAmount(calc.extra, item.materialType, 'need')}</b></div>
+          <div class="mini"><small>Costo</small><b>${euro(calc.cost)}</b></div>
         </div>
-        <div class="actions no-print">
-          <button class="btn" type="button" onclick="editItem('${item.id}')">Modifica</button>
-          <button class="btn" type="button" onclick="duplicateItem('${item.id}')">Duplica</button>
-          <button class="btn danger" type="button" onclick="deleteItem('${item.id}')">Elimina</button>
+        <div class="actions">
+          <button class="btn small" type="button" onclick="editItem('${item.id}')">Modifica</button>
+          <button class="btn small" type="button" onclick="duplicateItem('${item.id}')">Duplica</button>
+          <button class="btn small danger" type="button" onclick="deleteItem('${item.id}')">Elimina</button>
         </div>
       </article>
     `;
   }).join('');
 }
 
-function renderAll() {
-  renderSummary();
-  renderLive();
-  renderSavedList();
+function render() {
+  renderLicense();
+  renderMetrics();
+  renderLiveResult();
+  renderItems();
+  $('exportBtn').disabled = !isPro();
+  $('printBtn').textContent = isPro() ? 'Stampa / PDF' : 'Stampa / PDF Free';
 }
 
-function clearForm() {
-  editingId = null;
-  $('materialForm').reset();
-  $('project').value = state.project || '';
-  $('waste').value = '10';
-  $('paintYield').value = '10';
-  $('coats').value = '2';
-  $('canLiters').value = '5';
-  $('kgPerSqm').value = '4';
-  $('kgPack').value = '25';
-  $('saveBtn').textContent = 'Salva calcolo';
-  updateVisibility();
-}
-
-function saveCurrentItem(event) {
+function saveCalculation(event) {
   event.preventDefault();
-  const item = getCurrentInput();
-  const c = calculate(item);
+  const item = formData();
+  const calc = compute(item);
 
-  if (c.base <= 0) {
+  if (calc.base <= 0) {
     alert('Inserisci una misura valida prima di salvare.');
     return;
   }
 
-  const index = state.items.findIndex(saved => saved.id === item.id);
+  if (!canSaveMore()) {
+    showUpgradeModal(`Hai usato i ${CONFIG.freeLimit} calcoli gratuiti. Sblocca Pro per salvare calcoli illimitati.`);
+    return;
+  }
+
+  const index = state.items.findIndex((entry) => entry.id === item.id);
   if (index >= 0) state.items[index] = item;
   else state.items.unshift(item);
 
-  saveState();
   clearForm();
-  renderAll();
+  saveState();
 }
 
-window.editItem = function editItem(id) {
-  const item = state.items.find(saved => saved.id === id);
-  if (!item) return;
-  editingId = item.id;
+function clearForm() {
+  editingId = null;
+  $('calcForm').reset();
+  $('materialType').value = 'tiles';
+  $('measureMode').value = 'known';
+  $('waste').value = '10';
+  $('coats').value = '2';
+  updateVisibility();
+}
 
-  $('project').value = state.project || item.project || '';
+function fillForm(item) {
+  editingId = item.id;
   $('room').value = item.room || '';
-  $('materialName').value = item.materialName || '';
   $('materialType').value = item.materialType || 'tiles';
   $('measureMode').value = 'known';
   $('knownAmount').value = item.baseAmount || '';
-  $('waste').value = item.waste || 10;
-  $('packCoverage').value = item.packCoverage || '';
-  $('paintYield').value = item.paintYield || 10;
+  $('waste').value = item.waste ?? 10;
+  $('packMq').value = item.packMq || '';
+  $('paintYield').value = item.paintYield || '';
+  $('canLiters').value = item.canLiters || '';
   $('coats').value = item.coats || 2;
-  $('canLiters').value = item.canLiters || 5;
-  $('pieceLength').value = item.pieceLength || '';
-  $('kgPerSqm').value = item.kgPerSqm || 4;
-  $('kgPack').value = item.kgPack || 25;
-  $('unitPrice').value = item.unitPrice || '';
+  $('pieceMeters').value = item.pieceMeters || '';
+  $('kgPerMq').value = item.kgPerMq || '';
+  $('kgPack').value = item.kgPack || '';
+  $('price').value = item.price || '';
   $('notes').value = item.notes || '';
-  $('saveBtn').textContent = 'Aggiorna calcolo';
   updateVisibility();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+window.editItem = function editItem(id) {
+  const item = state.items.find((entry) => entry.id === id);
+  if (item) fillForm(item);
 };
 
 window.duplicateItem = function duplicateItem(id) {
-  const item = state.items.find(saved => saved.id === id);
+  const item = state.items.find((entry) => entry.id === id);
   if (!item) return;
-  const copy = JSON.parse(JSON.stringify(item));
-  copy.id = uid();
-  copy.room = `${copy.room} copia`;
-  state.items.unshift(copy);
+  if (!canSaveMore()) {
+    showUpgradeModal(`Hai usato i ${CONFIG.freeLimit} calcoli gratuiti. Sblocca Pro per duplicare altri calcoli.`);
+    return;
+  }
+  state.items.unshift({ ...item, id: uid(), room: `${item.room || 'Ambiente'} copia`, createdAt: new Date().toISOString() });
   saveState();
-  renderAll();
 };
 
 window.deleteItem = function deleteItem(id) {
   if (!confirm('Eliminare questo calcolo?')) return;
-  state.items = state.items.filter(item => item.id !== id);
+  state.items = state.items.filter((entry) => entry.id !== id);
   saveState();
-  renderAll();
 };
 
-function loadDemo() {
-  state = {
-    project: 'Ristrutturazione casa',
-    items: [
-      {
-        id: uid(), project: 'Ristrutturazione casa', room: 'Bagno principale', materialName: 'Gres tortora 60x60',
-        materialType: 'tiles', measureMode: 'known', baseAmount: 6.72, waste: 10, packCoverage: 1.44,
-        paintYield: 10, coats: 2, canLiters: 5, pieceLength: 0, kgPerSqm: 0, kgPack: 0, unitPrice: 52,
-        notes: 'Pavimento bagno'
-      },
-      {
-        id: uid(), project: 'Ristrutturazione casa', room: 'Soggiorno', materialName: 'Pittura lavabile bianco caldo',
-        materialType: 'paint', measureMode: 'known', baseAmount: 48, waste: 0, packCoverage: 0,
-        paintYield: 10, coats: 2, canLiters: 5, pieceLength: 0, kgPerSqm: 0, kgPack: 0, unitPrice: 42,
-        notes: 'Pareti + soffitto'
-      }
-    ]
-  };
-  $('project').value = state.project;
+function loadExample() {
+  if (!canSaveMore() && !isPro()) {
+    showUpgradeModal(`Hai usato i ${CONFIG.freeLimit} calcoli gratuiti. Sblocca Pro per aggiungere altri esempi e calcoli.`);
+    return;
+  }
+  state.items.unshift({
+    id: uid(),
+    room: 'Bagno principale',
+    materialType: 'tiles',
+    measureMode: 'known',
+    baseAmount: 6.72,
+    waste: 10,
+    packMq: 1.44,
+    price: 52,
+    notes: 'Gres pavimento 60×60',
+    createdAt: new Date().toISOString()
+  });
   saveState();
-  renderAll();
 }
 
-function exportData() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+function exportBackup() {
+  if (!isPro()) {
+    showUpgradeModal('L’export backup è incluso nella versione Pro.');
+    return;
+  }
+  const blob = new Blob([JSON.stringify({ version: CONFIG.appVersion, state }, null, 2)], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = 'compra-giusto-materiali-backup.json';
@@ -408,95 +471,121 @@ function exportData() {
   URL.revokeObjectURL(link.href);
 }
 
-function importData(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const imported = JSON.parse(reader.result);
-      if (!imported || !Array.isArray(imported.items)) throw new Error('Invalid backup');
-      state = imported;
-      $('project').value = state.project || '';
-      saveState();
-      renderAll();
-    } catch (error) {
-      alert('Backup non valido.');
-    }
-  };
-  reader.readAsText(file);
+function printReport() {
+  if (!isPro()) {
+    if (!confirm('La versione Free stampa con watermark. Sbloccare Pro per un report pulito?')) return;
+  }
+  window.print();
 }
 
-function resetData() {
-  if (!confirm('Cancellare tutti i calcoli salvati?')) return;
-  state = { project: '', items: [] };
-  localStorage.removeItem(KEY);
-  clearForm();
-  renderAll();
-}
+async function verifyLicense() {
+  const key = $('licenseKeyInput').value.trim();
+  const message = $('licenseMessage');
 
-function initTheme() {
-  const saved = localStorage.getItem('compra_giusto_theme') || 'light';
-  document.documentElement.dataset.theme = saved;
-  $('themeBtn').onclick = () => {
-    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    localStorage.setItem('compra_giusto_theme', next);
-  };
-}
-
-function initPwa() {
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    });
+  if (!key) {
+    message.className = 'licenseMessage bad';
+    message.textContent = 'Inserisci una license key.';
+    return;
   }
 
-  window.addEventListener('beforeinstallprompt', (event) => {
-    event.preventDefault();
-    deferredInstallPrompt = event;
-    $('installBtn').hidden = false;
-  });
+  message.className = 'licenseMessage';
+  message.textContent = 'Verifica in corso...';
+  $('verifyLicenseBtn').disabled = true;
 
-  $('installBtn').onclick = async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-    $('installBtn').hidden = true;
-  };
-}
-
-function initEvents() {
-  $('materialForm').addEventListener('submit', saveCurrentItem);
-  $('clearBtn').onclick = clearForm;
-  $('demoBtn').onclick = loadDemo;
-  $('exportBtn').onclick = exportData;
-  $('importBtn').onclick = () => $('importFile').click();
-  $('importFile').onchange = (event) => {
-    const file = event.target.files && event.target.files[0];
-    if (file) importData(file);
-    event.target.value = '';
-  };
-  $('printBtn').onclick = () => window.print();
-  $('resetBtn').onclick = resetData;
-
-  ['input', 'change'].forEach(eventName => {
-    document.addEventListener(eventName, (event) => {
-      if (event.target.closest('#materialForm')) updateVisibility();
-      if (event.target.id === 'project') {
-        state.project = $('project').value.trim();
-        localStorage.setItem(KEY, JSON.stringify(state));
-      }
+  try {
+    const response = await fetch(CONFIG.verifyEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ licenseKey: key, mode: 'activate' })
     });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.message || 'License key non valida.');
+    }
+
+    saveLicense({
+      status: 'pro',
+      licenseKey: key,
+      activatedAt: new Date().toISOString(),
+      lastVerifiedAt: new Date().toISOString(),
+      purchaseEmail: data.email || null,
+      uses: data.uses || null
+    });
+
+    message.className = 'licenseMessage ok';
+    message.textContent = 'Pro attivata. Puoi chiudere questa finestra.';
+    setTimeout(hideUpgradeModal, 900);
+  } catch (error) {
+    message.className = 'licenseMessage bad';
+    message.textContent = error.message || 'Errore durante la verifica.';
+  } finally {
+    $('verifyLicenseBtn').disabled = false;
+  }
+}
+
+async function recheckLicenseIfNeeded() {
+  if (!isPro() || !license.licenseKey) return;
+
+  const last = license.lastVerifiedAt ? new Date(license.lastVerifiedAt).getTime() : 0;
+  const days = (Date.now() - last) / (1000 * 60 * 60 * 24);
+  if (days < CONFIG.recheckDays) return;
+
+  try {
+    const response = await fetch(CONFIG.verifyEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ licenseKey: license.licenseKey, mode: 'check' })
+    });
+    const data = await response.json();
+    if (response.ok && data.ok) {
+      saveLicense({ ...license, lastVerifiedAt: new Date().toISOString(), uses: data.uses || license.uses });
+    }
+  } catch {
+    // Offline or network error: keep Pro active. Do not punish users in cantiere.
+  }
+}
+
+function resetAll() {
+  if (!confirm('Cancellare tutti i calcoli salvati? La licenza Pro resta attiva.')) return;
+  state.items = [];
+  saveState();
+}
+
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', state.theme || 'light');
+}
+
+function toggleTheme() {
+  state.theme = (state.theme || 'light') === 'dark' ? 'light' : 'dark';
+  saveState();
+}
+
+function bindEvents() {
+  $('calcForm').addEventListener('submit', saveCalculation);
+  $('clearBtn').addEventListener('click', clearForm);
+  $('loadExampleBtn').addEventListener('click', loadExample);
+  $('exportBtn').addEventListener('click', exportBackup);
+  $('printBtn').addEventListener('click', printReport);
+  $('resetBtn').addEventListener('click', resetAll);
+  $('activateBtn').addEventListener('click', () => showUpgradeModal());
+  $('closeLicenseModal').addEventListener('click', hideUpgradeModal);
+  $('verifyLicenseBtn').addEventListener('click', verifyLicense);
+  $('themeBtn').addEventListener('click', toggleTheme);
+
+  ['materialType', 'measureMode'].forEach((id) => $(id).addEventListener('change', updateVisibility));
+  $$('#calcForm input, #calcForm textarea, #calcForm select').forEach((field) => {
+    field.addEventListener('input', renderLiveResult);
   });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 }
 
-function init() {
-  $('project').value = state.project || '';
-  initTheme();
-  initPwa();
-  initEvents();
-  updateVisibility();
-  renderAll();
-}
-
-document.addEventListener('DOMContentLoaded', init);
+applyTheme();
+bindEvents();
+updateVisibility();
+render();
+recheckLicenseIfNeeded();
