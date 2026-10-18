@@ -13,6 +13,10 @@ Questa è la sezione **Materiali** di una futura piattaforma modulare per la ges
 - Dati esclusivamente locali; esportazione e importazione JSON gratuite; PWA offline.
 - Migrazione automatica e non distruttiva degli elementi salvati dalla precedente versione `cg_materiali_v3_state`.
 
+## iPhone e PWA
+
+Apri il sito con Safari → Condividi → **Aggiungi alla schermata Home**. L'icona iPhone dedicata è `icons/apple-touch-icon.png` (180 × 180); le altre icone PWA (192 e 512) usano lo stesso simbolo. La modalità `standalone` evita l'interfaccia del browser quando si apre dalla Home. Chi ha già installato la vecchia icona potrebbe doverla rimuovere e aggiungerla nuovamente.
+
 ## Avvio
 
 ```bash
