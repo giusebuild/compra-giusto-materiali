@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8f6">
+  <meta name="description" content="Calcola quante confezioni di materiali acquistare e prepara la lista per casa. Gratis, anche offline.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./styles.css?v=4.0.0">
+  <title>Materiali · Casa</title>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Casa, Materiali">
+        <img src="./icons/icon.svg" alt="" width="42" height="42">
+        <span><small>CASA</small><strong>Materiali</strong></span>
+      </a>
+      <nav class="nav" aria-label="Navigazione principale">
+        <button type="button" class="navBtn active" data-tab="calc" aria-current="page">Calcola</button>
+        <button type="button" class="navBtn" data-tab="list">La mia lista <span id="listCount" class="count hidden">0</span></button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="calcPanel" class="panel active" aria-labelledby="pageTitle">
+        <div class="intro">
+          <h1 id="pageTitle">Quanto devi comprare?</h1>
+          <p>Inserisci le misure. Ti diciamo quante confezioni servono e quanto spenderai.</p>
+        </div>
+
+        <div class="workspace">
+          <form id="calcForm" class="editor" novalidate>
+            <section class="section">
+              <div class="sectionHead"><span class="step">01</span><h2>Materiale</h2></div>
+              <div class="kindGrid" id="kindChoices" role="group" aria-label="Materiale">
+                <button type="button" class="kind active" data-kind="tiles" aria-pressed="true"><span class="miniIcon" aria-hidden="true">▦</span>Piastrelle</button>
+                <button type="button" class="kind" data-kind="paint" aria-pressed="false"><span class="miniIcon" aria-hidden="true">◒</span>Pittura</button>
+                <button type="button" class="kind" data-kind="linear" aria-pressed="false"><span class="miniIcon" aria-hidden="true">⌁</span>Battiscopa</button>
+                <button type="button" class="kind" data-kind="compound" aria-pressed="false"><span class="miniIcon" aria-hidden="true">▧</span>Colla / fugante</button>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="sectionHead"><span class="step">02</span><h2>Misure</h2></div>
+              <div class="modeGrid" role="group" aria-label="Come vuoi misurare?">
+                <button type="button" class="mode active" data-mode="known" aria-pressed="true">So già la quantità</button>
+                <button type="button" class="mode" data-mode="rect" aria-pressed="false">Lunghezza × larghezza</button>
+                <button type="button" class="mode" data-mode="walls" aria-pressed="false">Pareti</button>
+                <button type="button" class="mode" data-mode="parts" aria-pressed="false">Più superfici</button>
+              </div>
+              <div id="knownFields" class="fields">
+                <label class="field"><span id="amountLabel">Superficie (m²)</span><input name="amount" id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 12,5"></label>
+              </div>
+              <div id="rectFields" class="fields two hidden">
+                <label class="field"><span>Lunghezza (m)</span><input name="length" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 3,4"></label>
+                <label class="field"><span>Larghezza (m)</span><input name="width" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 2,8"></label>
+              </div>
+              <div id="wallsFields" class="fields two hidden">
+                <label class="field"><span>Altezza (m)</span><input name="height" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 2,7"></label>
+                <label class="field"><span>Porte e finestre (m²)</span><input name="openings" type="text" inputmode="decimal" autocomplete="off" placeholder="Da sottrarre, se presenti"></label>
+              </div>
+              <div id="partsFields" class="fields hidden">
+                <label class="field"><span>Una misura per riga</span><textarea name="parts" rows="3" placeholder="3,2 × 2,1&#10;1,4&#10;0,8"></textarea></label>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="sectionHead"><span class="step">03</span><h2>Confezione e prezzo</h2></div>
+              <div id="tilesFields" class="fields">
+                <label class="field"><span>m² per scatola</span><input name="packArea" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 1,44"></label>
+              </div>
+              <div id="paintFields" class="fields two hidden">
+                <label class="field"><span>Resa (m² per litro)</span><input name="paintYield" type="text" inputmode="decimal" placeholder="Es. 10"></label>
+                <label class="field"><span>Litri per barattolo</span><input name="paintCan" type="text" inputmode="decimal" placeholder="Es. 5"></label>
+                <label class="field"><span>Numero di mani</span><input name="coats" type="text" inputmode="numeric" placeholder="Es. 2"></label>
+              </div>
+              <div id="linearFields" class="fields hidden">
+                <label class="field"><span>Metri per pezzo</span><input name="pieceLength" type="text" inputmode="decimal" placeholder="Es. 2,4"></label>
+              </div>
+              <div id="compoundFields" class="fields two hidden">
+                <label class="field"><span>Consumo (kg per m²)</span><input name="rate" type="text" inputmode="decimal" placeholder="Es. 4"></label>
+                <label class="field"><span>Kg per sacco</span><input name="bagWeight" type="text" inputmode="decimal" placeholder="Es. 25"></label>
+              </div>
+              <div class="fields two">
+                <label class="field"><span>Sfrido (%) <span class="muted">(stima)</span></span><input name="waste" type="text" inputmode="decimal" value="10"></label>
+                <label class="field"><span id="priceLabel">Prezzo per scatola (€) <span class="muted">(facoltativo)</span></span><input name="price" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 32,90"></label>
+              </div>
+              <details class="optional" id="optionalFields">
+                <summary>Dettagli facoltativi</summary>
+                <div class="fields two">
+                  <label class="field"><span>Ambiente</span><input name="room" type="text" maxlength="80" placeholder="Es. bagno"></label>
+                  <label class="field"><span>Prodotto / nota</span><input name="details" type="text" maxlength="200" placeholder="Es. gres 60×60"></label>
+                </div>
+              </details>
+            </section>
+            <button type="button" id="clearBtn" class="textBtn">Azzera i campi</button>
+          </form>
+
+          <aside class="resultCard" aria-labelledby="resultTitle">
+            <div class="resultEyebrow">LA TUA STIMA</div>
+            <h2 id="resultTitle">Da comprare</h2>
+            <div id="resultQuantity" class="resultQuantity" aria-live="polite">—</div>
+            <p id="resultError" class="resultHint">Inserisci misure e confezione.</p>
+            <div class="divider"></div>
+            <dl class="breakdown">
+              <div><dt>Da coprire</dt><dd id="resultBase">—</dd></div>
+              <div><dt>Quantità necessaria <span class="help" title="Include lo sfrido indicato">ⓘ</span></dt><dd id="resultNeeded">—</dd></div>
+              <div><dt>Avanzo stimato</dt><dd id="resultExtra">—</dd></div>
+              <div class="total"><dt>Costo stimato</dt><dd id="resultCost">—</dd></div>
+            </dl>
+            <button type="button" id="saveBtn" class="primaryBtn" disabled>Aggiungi alla lista <span aria-hidden="true">↗</span></button>
+            <button type="button" id="cancelEditBtn" class="textBtn hidden">Annulla modifica</button>
+          </aside>
+        </div>
+      </section>
+
+      <section id="listPanel" class="panel" aria-labelledby="listTitle">
+        <div class="listHeader">
+          <div><h1 id="listTitle">La mia lista</h1><p>Le quantità da acquistare, tutte insieme.</p></div>
+          <button type="button" id="newBtn" class="secondaryBtn">+ Nuovo calcolo</button>
+        </div>
+        <div class="listSummary">
+          <div><span>Materiali</span><strong id="summaryCount">0</strong></div>
+          <div><span>Totale stimato</span><strong id="summaryCost">—</strong><small id="summaryMissing"></small></div>
+        </div>
+        <div id="listItems" class="items"></div>
+        <div class="dataActions">
+          <button type="button" id="exportBtn" class="textBtn">Esporta lista</button>
+          <button type="button" id="importBtn" class="textBtn">Importa lista</button>
+          <input type="file" id="importFile" accept=".json,application/json" class="srOnly">
+        </div>
+      </section>
+    </main>
+
+    <footer>Solo sul tuo dispositivo · Esporta una copia dalla tua lista.</footer>
+  </div>
+
+  <div id="mobileDock" class="mobileDock">
+    <div><small>DA COMPRARE</small><strong id="mobileQty">—</strong></div>
+    <button type="button" id="mobileSaveBtn" class="primaryBtn" disabled>Aggiungi <span aria-hidden="true">↗</span></button>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./calc.js?v=4.0.0"></script>
+  <script src="./app.js?v=4.0.0" defer></script>
+</body>
+</html>
