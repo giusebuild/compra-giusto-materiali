@@ -1,13 +1,8 @@
 {
-  "name": "compragiusto-materiali-pwa",
-  "version": "3.4.2",
+  "name": "casa-materiali",
+  "version": "4.0.0",
   "private": true,
   "scripts": {
-    "dev": "netlify dev",
-    "keys": "node tools/generate-license-keys.js --write",
-    "test": "node --check app.js && node --check sw.js && node --check netlify/functions/verify-license.js && node --check tools/generate-license-keys.js && node tests/regression.mjs"
-  },
-  "devDependencies": {
-    "netlify-cli": "^17.0.0"
+    "test": "node --test tests/*.test.cjs && node --check app.js && node --check sw.js && node --check calc.js"
   }
 }

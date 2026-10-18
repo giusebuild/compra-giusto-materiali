@@ -1,350 +1,149 @@
 <!doctype html>
-<html lang="it" data-theme="light" data-license="free">
+<html lang="it" data-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#2563eb">
-  <meta name="description" content="CompraGiusto Materiali calcola quantità, confezioni, avanzo e costo prima di comprare materiali per casa.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8f6">
+  <meta name="description" content="Calcola quante confezioni di materiali acquistare e prepara la lista per casa. Gratis, anche offline.">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=3.4.2">
-  <script src="./license-public-key.js"></script>
-  <title>CompraGiusto Materiali</title>
+  <link rel="stylesheet" href="./styles.css?v=4.0.0">
+  <title>Materiali · Casa</title>
 </head>
 <body>
-  <div class="watermark">CompraGiusto Free</div>
-
-  <main class="app">
+  <div class="shell">
     <header class="topbar">
-      <div class="brand">
-        <div class="logo">CG</div>
-        <div>
-          <h1>CompraGiusto Materiali</h1>
-          <p>Calcoli salvati sul dispositivo</p>
-        </div>
-      </div>
-      <div class="topActions">
-        <span id="licenseBadge" class="badge">Free</span>
-        <button id="themeBtn" class="btn small hideMobile" type="button">Tema</button>
-        <button id="installBtn" class="btn small hidden" type="button">Installa</button>
-        <button id="topProBtn" class="btn primary small" type="button">Sblocca Pro</button>
-        <button id="manageLicenseBtn" class="btn small hidden" type="button">Licenza</button>
-      </div>
+      <a class="brand" href="./" aria-label="Casa, Materiali">
+        <img src="./icons/icon.svg" alt="" width="42" height="42">
+        <span><small>CASA</small><strong>Materiali</strong></span>
+      </a>
+      <nav class="nav" aria-label="Navigazione principale">
+        <button type="button" class="navBtn active" data-tab="calc" aria-current="page">Calcola</button>
+        <button type="button" class="navBtn" data-tab="list">La mia lista <span id="listCount" class="count hidden">0</span></button>
+      </nav>
     </header>
 
-    <section class="hero">
-      <div>
-        <span class="badge eyebrow">Calcolo acquisto materiali</span>
-        <h2>Calcola quanto comprare.</h2>
-        <p>Parti dai dati che hai. L’app calcola unità da comprare, avanzo e costo stimato.</p>
-      </div>
+    <main>
+      <section id="calcPanel" class="panel active" aria-labelledby="pageTitle">
+        <div class="intro">
+          <h1 id="pageTitle">Quanto devi comprare?</h1>
+          <p>Inserisci le misure. Ti diciamo quante confezioni servono e quanto spenderai.</p>
+        </div>
 
-      <aside class="statusCard">
-        <span id="heroLicenseBadge" class="badge">Free</span>
-        <h3 id="heroLicenseTitle">3 calcoli gratuiti rimasti</h3>
-        <p id="heroLicenseText">Sblocca Pro per calcoli illimitati, export backup e report pulito.</p>
-        <button id="proCta" class="btn primary" type="button">Sblocca Pro</button>
-        <button id="manageLicenseBtnDuplicate" class="btn hidden" type="button" aria-hidden="true" tabindex="-1">Licenza</button>
-      </aside>
-    </section>
-
-    <nav class="tabs noPrint" aria-label="Sezioni">
-      <button class="tab" type="button" data-tab="calculate" aria-selected="true">Calcola</button>
-      <button class="tab" type="button" data-tab="archive" aria-selected="false">Archivio</button>
-      <button class="tab" type="button" data-tab="tools" aria-selected="false">Strumenti</button>
-    </nav>
-
-    <section id="calculatePanel" class="tabPanel active" data-panel="calculate">
-      <div class="workspace">
-        <section class="card">
-          <div class="flow">
-            <article class="stepCard open" data-step="1">
-              <button class="stepHead" type="button">
-                <span class="stepTitle">
-                  <span class="stepNum">1</span>
-                  <span><b>Cosa devi comprare?</b><small>Materiale e ambiente</small></span>
-                </span>
-                <span id="stateMaterial" class="stepState">Pavimento / rivestimento</span>
-              </button>
-              <div class="stepBody">
-                <div class="formGrid">
-                  <div class="field">
-                    <label for="room">Ambiente</label>
-                    <input id="room" type="text" placeholder="Es. bagno principale">
-                  </div>
-                  <div class="field">
-                    <label for="material">Materiale</label>
-                    <select id="material">
-                      <option value="boxes">Pavimento / rivestimento</option>
-                      <option value="paint">Pittura</option>
-                      <option value="linear">Battiscopa / profili</option>
-                      <option value="kg">Colla / fugante</option>
-                    </select>
-                  </div>
-                </div>
+        <div class="workspace">
+          <form id="calcForm" class="editor" novalidate>
+            <section class="section">
+              <div class="sectionHead"><span class="step">01</span><h2>Materiale</h2></div>
+              <div class="kindGrid" id="kindChoices" role="group" aria-label="Materiale">
+                <button type="button" class="kind active" data-kind="tiles" aria-pressed="true"><span class="miniIcon" aria-hidden="true">▦</span>Piastrelle</button>
+                <button type="button" class="kind" data-kind="paint" aria-pressed="false"><span class="miniIcon" aria-hidden="true">◒</span>Pittura</button>
+                <button type="button" class="kind" data-kind="linear" aria-pressed="false"><span class="miniIcon" aria-hidden="true">⌁</span>Battiscopa</button>
+                <button type="button" class="kind" data-kind="compound" aria-pressed="false"><span class="miniIcon" aria-hidden="true">▧</span>Colla / fugante</button>
               </div>
-            </article>
+            </section>
 
-            <article class="stepCard" data-step="2">
-              <button class="stepHead" type="button">
-                <span class="stepTitle">
-                  <span class="stepNum">2</span>
-                  <span><b>Da quali dati parti?</b><small>Scegli il modo più comodo</small></span>
-                </span>
-                <span id="stateMeasure" class="stepState">Dato già noto</span>
-              </button>
-              <div class="stepBody">
-                <div class="choiceGrid">
-                  <button class="choice active" type="button" data-mode="known">
-                    <span><strong>Ho già il dato</strong><span>Mq, metri o quantità da coprire.</span></span>
-                  </button>
-                  <button class="choice" type="button" data-mode="rect">
-                    <span><strong>Lunghezza × larghezza</strong><span>Perfetto per superfici regolari.</span></span>
-                  </button>
-                  <button class="choice" type="button" data-mode="parts">
-                    <span><strong>Sommo più parti</strong><span>Per nicchie, rientranze e stanze irregolari.</span></span>
-                  </button>
-                  <button class="choice" type="button" data-mode="walls">
-                    <span><strong>Calcolo pareti</strong><span>Per pittura o rivestimenti verticali.</span></span>
-                  </button>
-                </div>
-
-                <div style="height:12px"></div>
-
-                <div id="knownFields" class="formGrid">
-                  <div class="field full">
-                    <label id="knownLabel" for="quantity">Mq da coprire</label>
-                    <input id="quantity" type="text" inputmode="decimal" placeholder="Es. 18,5">
-                    <span id="knownHint" class="hint">Esempio: dato del rilievo, preventivo o scheda tecnica.</span>
-                  </div>
-                </div>
-
-                <div id="rectFields" class="formGrid hidden">
-                  <div class="field"><label for="length">Lunghezza m</label><input id="length" type="text" inputmode="decimal" placeholder="3,40"></div>
-                  <div class="field"><label for="width">Larghezza m</label><input id="width" type="text" inputmode="decimal" placeholder="2,15"></div>
-                </div>
-
-                <div id="partsFields" class="formGrid hidden">
-                  <div class="field full">
-                    <label for="parts">Parti da sommare</label>
-                    <textarea id="parts" placeholder="Una riga per parte. Esempio:&#10;3,2x2,1&#10;1,4&#10;0,8"></textarea>
-                    <span class="hint">Puoi scrivere un numero in mq oppure base x altezza/larghezza.</span>
-                  </div>
-                </div>
-
-                <div id="wallsFields" class="formGrid hidden">
-                  <div class="field"><label for="height">Altezza m</label><input id="height" type="text" inputmode="decimal" placeholder="2,70"></div>
-                  <div class="field"><label for="doors">Porte</label><input id="doors" type="text" inputmode="numeric" placeholder="1"></div>
-                  <div class="field"><label for="windows">Finestre</label><input id="windows" type="text" inputmode="numeric" placeholder="1"></div>
-                  <p class="sub field full">Usiamo lunghezza e larghezza sopra. Porte e finestre vengono sottratte con misure standard.</p>
-                </div>
+            <section class="section">
+              <div class="sectionHead"><span class="step">02</span><h2>Misure</h2></div>
+              <div class="modeGrid" role="group" aria-label="Come vuoi misurare?">
+                <button type="button" class="mode active" data-mode="known" aria-pressed="true">So già la quantità</button>
+                <button type="button" class="mode" data-mode="rect" aria-pressed="false">Lunghezza × larghezza</button>
+                <button type="button" class="mode" data-mode="walls" aria-pressed="false">Pareti</button>
+                <button type="button" class="mode" data-mode="parts" aria-pressed="false">Più superfici</button>
               </div>
-            </article>
-
-            <article class="stepCard" data-step="3">
-              <button class="stepHead" type="button">
-                <span class="stepTitle">
-                  <span class="stepNum">3</span>
-                  <span><b>Come viene venduto?</b><small>Confezione, resa, prezzo</small></span>
-                </span>
-                <span id="stateSale" class="stepState">Da completare</span>
-              </button>
-              <div class="stepBody">
-                <div class="formGrid">
-                  <div class="field">
-                    <label for="waste">Sfrido %</label>
-                    <input id="waste" type="text" inputmode="decimal" value="10">
-                    <span class="hint">Se non sai cosa mettere, usa 10%.</span>
-                  </div>
-                  <div class="field">
-                    <label for="unitPrice">Prezzo unità €</label>
-                    <input id="unitPrice" type="text" inputmode="decimal" placeholder="Es. 52">
-                  </div>
-                </div>
-
-                <div id="sellBoxes" class="formGrid">
-                  <div class="field">
-                    <label for="packArea">Mq per confezione</label>
-                    <input id="packArea" type="text" inputmode="decimal" placeholder="Es. 1,44">
-                  </div>
-                </div>
-
-                <div id="sellPaint" class="formGrid hidden">
-                  <div class="field"><label for="paintYield">Resa mq/litro</label><input id="paintYield" type="text" inputmode="decimal" placeholder="10"></div>
-                  <div class="field"><label for="canLiters">Litri per barattolo</label><input id="canLiters" type="text" inputmode="decimal" placeholder="5"></div>
-                  <div class="field"><label for="coats">Numero mani</label><input id="coats" type="text" inputmode="decimal" placeholder="2"></div>
-                </div>
-
-                <div id="sellLinear" class="formGrid hidden">
-                  <div class="field">
-                    <label for="pieceLength">Metri per pezzo</label>
-                    <input id="pieceLength" type="text" inputmode="decimal" placeholder="2,4">
-                  </div>
-                </div>
-
-                <div id="sellKg" class="formGrid hidden">
-                  <div class="field"><label for="kgPerMq">Consumo kg/mq</label><input id="kgPerMq" type="text" inputmode="decimal" placeholder="4"></div>
-                  <div class="field"><label for="kgPack">Kg per sacco</label><input id="kgPack" type="text" inputmode="decimal" placeholder="25"></div>
-                </div>
-
-                <div class="field full">
-                  <label for="notes">Note prodotto</label>
-                  <textarea id="notes" placeholder="Formato, marca, codice prodotto, negozio, link..."></textarea>
-                </div>
+              <div id="knownFields" class="fields">
+                <label class="field"><span id="amountLabel">Superficie (m²)</span><input name="amount" id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 12,5"></label>
               </div>
-            </article>
-
-            <article class="stepCard" data-step="4">
-              <button class="stepHead" type="button">
-                <span class="stepTitle">
-                  <span class="stepNum">4</span>
-                  <span><b>Risultato</b><small>Salva o stampa il riepilogo</small></span>
-                </span>
-                <span id="stateResult" class="stepState">Pronto quando compili</span>
-              </button>
-              <div class="stepBody">
-                <div class="saveBar">
-                  <button id="saveCalcBtn" class="btn primary" type="button">Salva calcolo</button>
-                  <button id="clearBtn" class="btn" type="button">Pulisci</button>
-                  <button id="exampleBtn" class="btn soft" type="button">Esempio</button>
-                </div>
-                <p id="saveFeedback" class="saveFeedback" aria-live="polite"></p>
+              <div id="rectFields" class="fields two hidden">
+                <label class="field"><span>Lunghezza (m)</span><input name="length" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 3,4"></label>
+                <label class="field"><span>Larghezza (m)</span><input name="width" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 2,8"></label>
               </div>
-            </article>
-          </div>
-        </section>
+              <div id="wallsFields" class="fields two hidden">
+                <label class="field"><span>Altezza (m)</span><input name="height" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 2,7"></label>
+                <label class="field"><span>Porte e finestre (m²)</span><input name="openings" type="text" inputmode="decimal" autocomplete="off" placeholder="Da sottrarre, se presenti"></label>
+              </div>
+              <div id="partsFields" class="fields hidden">
+                <label class="field"><span>Una misura per riga</span><textarea name="parts" rows="3" placeholder="3,2 × 2,1&#10;1,4&#10;0,8"></textarea></label>
+              </div>
+            </section>
 
-        <aside class="resultBox">
-          <section class="resultMain">
-            <div class="label">Quanto comprare</div>
-            <div id="resultAnswer" class="answer warn">Inserisci misure e confezione</div>
-            <p id="resultSub">Parti dal dato che conosci davvero.</p>
-            <div class="kpiGrid">
-              <div class="kpi"><small>Da coprire</small><b id="kpiBase">0,00 mq</b></div>
-              <div class="kpi"><small>Quantità</small><b id="kpiNeeded">0,00 mq</b></div>
-              <div class="kpi"><small>Comprato</small><b id="kpiBought">0,00 mq</b></div>
-              <div class="kpi"><small>Costo</small><b id="kpiCost">0,00 €</b></div>
-            </div>
-          </section>
+            <section class="section">
+              <div class="sectionHead"><span class="step">03</span><h2>Confezione e prezzo</h2></div>
+              <div id="tilesFields" class="fields">
+                <label class="field"><span>m² per scatola</span><input name="packArea" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 1,44"></label>
+              </div>
+              <div id="paintFields" class="fields two hidden">
+                <label class="field"><span>Resa (m² per litro)</span><input name="paintYield" type="text" inputmode="decimal" placeholder="Es. 10"></label>
+                <label class="field"><span>Litri per barattolo</span><input name="paintCan" type="text" inputmode="decimal" placeholder="Es. 5"></label>
+                <label class="field"><span>Numero di mani</span><input name="coats" type="text" inputmode="numeric" placeholder="Es. 2"></label>
+              </div>
+              <div id="linearFields" class="fields hidden">
+                <label class="field"><span>Metri per pezzo</span><input name="pieceLength" type="text" inputmode="decimal" placeholder="Es. 2,4"></label>
+              </div>
+              <div id="compoundFields" class="fields two hidden">
+                <label class="field"><span>Consumo (kg per m²)</span><input name="rate" type="text" inputmode="decimal" placeholder="Es. 4"></label>
+                <label class="field"><span>Kg per sacco</span><input name="bagWeight" type="text" inputmode="decimal" placeholder="Es. 25"></label>
+              </div>
+              <div class="fields two">
+                <label class="field"><span>Sfrido (%) <span class="muted">(stima)</span></span><input name="waste" type="text" inputmode="decimal" value="10"></label>
+                <label class="field"><span id="priceLabel">Prezzo per scatola (€) <span class="muted">(facoltativo)</span></span><input name="price" type="text" inputmode="decimal" autocomplete="off" placeholder="Es. 32,90"></label>
+              </div>
+              <details class="optional" id="optionalFields">
+                <summary>Dettagli facoltativi</summary>
+                <div class="fields two">
+                  <label class="field"><span>Ambiente</span><input name="room" type="text" maxlength="80" placeholder="Es. bagno"></label>
+                  <label class="field"><span>Prodotto / nota</span><input name="details" type="text" maxlength="200" placeholder="Es. gres 60×60"></label>
+                </div>
+              </details>
+            </section>
+            <button type="button" id="clearBtn" class="textBtn">Azzera i campi</button>
+          </form>
 
-          <section class="card slim">
-            <h3>Controlla prima di comprare</h3>
-            <div id="checkList" class="checkList"></div>
-          </section>
+          <aside class="resultCard" aria-labelledby="resultTitle">
+            <div class="resultEyebrow">LA TUA STIMA</div>
+            <h2 id="resultTitle">Da comprare</h2>
+            <div id="resultQuantity" class="resultQuantity" aria-live="polite">—</div>
+            <p id="resultError" class="resultHint">Inserisci misure e confezione.</p>
+            <div class="divider"></div>
+            <dl class="breakdown">
+              <div><dt>Da coprire</dt><dd id="resultBase">—</dd></div>
+              <div><dt>Quantità necessaria <span class="help" title="Include lo sfrido indicato">ⓘ</span></dt><dd id="resultNeeded">—</dd></div>
+              <div><dt>Avanzo stimato</dt><dd id="resultExtra">—</dd></div>
+              <div class="total"><dt>Costo stimato</dt><dd id="resultCost">—</dd></div>
+            </dl>
+            <button type="button" id="saveBtn" class="primaryBtn" disabled>Aggiungi alla lista <span aria-hidden="true">↗</span></button>
+            <button type="button" id="cancelEditBtn" class="textBtn hidden">Annulla modifica</button>
+          </aside>
+        </div>
+      </section>
 
-          <section id="freeContextAd" class="notice free contextAd">
-            <h4>Passo successivo utile</h4>
-            <p id="freeContextAdText">Hai stimato il costo del materiale. Ora puoi controllare se quel pagamento entra nel mese giusto.</p>
-            <button class="btn small soft" type="button" data-tab-link="tools">Vai agli strumenti</button>
-          </section>
-
-          <section id="postSaveNudge" class="notice free hidden">
-            <h4>Calcolo salvato</h4>
-            <p>Quando compri davvero, puoi segnare la spesa per non perdere il budget.</p>
-            <button class="btn small soft" type="button" data-tab-link="tools">Vedi Spese Sotto Controllo</button>
-          </section>
-        </aside>
-      </div>
-    </section>
-
-    <section id="archivePanel" class="tabPanel" data-panel="archive">
-      <div class="card">
+      <section id="listPanel" class="panel" aria-labelledby="listTitle">
         <div class="listHeader">
-          <div>
-            <h3>Calcoli salvati</h3>
-            <p class="sub">Riapri, duplica o stampa i materiali già preparati.</p>
-          </div>
-          <div class="listActions noPrint">
-            <button id="exportBtn" class="btn" type="button">Esporta backup</button>
-            <button id="importBtn" class="btn" type="button">Importa backup</button>
-            <button id="printBtn" class="btn" type="button">Stampa report</button>
-            <input id="importFile" type="file" accept="application/json" class="hidden">
-          </div>
+          <div><h1 id="listTitle">La mia lista</h1><p>Le quantità da acquistare, tutte insieme.</p></div>
+          <button type="button" id="newBtn" class="secondaryBtn">+ Nuovo calcolo</button>
         </div>
-
-        <div id="archiveProNotice" class="notice free">
-          <h4>Free: export e report pulito sono Pro</h4>
-          <p>Puoi salvare fino a 3 calcoli. Con Pro hai calcoli illimitati, backup e stampa senza watermark.</p>
-          <button class="btn small primary" type="button" data-upgrade>Sblocca Pro</button>
+        <div class="listSummary">
+          <div><span>Materiali</span><strong id="summaryCount">0</strong></div>
+          <div><span>Totale stimato</span><strong id="summaryCost">—</strong><small id="summaryMissing"></small></div>
         </div>
-
-        <section id="archiveDashboard" class="archiveDashboard" aria-label="Riepilogo archivio">
-          <div class="archiveStat"><small>Calcoli</small><b id="archiveCount">0</b><span>salvati</span></div>
-          <div class="archiveStat"><small>Costo stimato</small><b id="archiveCost">0,00 €</b><span>totale lista</span></div>
-          <div class="archiveStat"><small>Unità</small><b id="archiveUnits">0</b><span>confezioni / pezzi</span></div>
-          <div class="archiveStat"><small>Da coprire</small><b id="archiveCoverage">0,00 mq</b><span>materiale stimato</span></div>
-        </section>
-
-        <div id="archiveInsight" class="archiveInsight"><strong>Archivio vuoto.</strong> Salva un calcolo per costruire una lista acquisto confrontabile.</div>
-        <div class="archiveMeta"><span><b id="archiveRooms">0</b> ambienti</span><span id="archiveMaterials">—</span></div>
-
-        <div style="height:12px"></div>
-        <div id="archiveList" class="archiveList"></div>
-      </div>
-    </section>
-
-    <section id="toolsPanel" class="tabPanel" data-panel="tools">
-      <div class="card">
-        <h3>Altri strumenti utili</h3>
-        <p class="sub">La quantità è solo il primo pezzo. Stiamo preparando strumenti pratici per cassa, spese e finiture durante la ristrutturazione.</p>
-        <div id="toolsGrid" class="toolsGrid"></div>
-
-        <div class="feedbackPanel">
-          <div>
-            <span class="badge eyebrow">Feedback e richieste</span>
-            <h3>Serve altro?</h3>
-            <p>Segnala un problema, richiedi uno strumento in arrivo o proponi una nuova app utile per la ristrutturazione.</p>
-          </div>
-          <div class="feedbackActions">
-            <button class="btn soft" type="button" data-feedback-action="problema" data-feedback-tool="CompraGiusto Materiali" data-feedback-origin="tab-strumenti">Segnala problema</button>
-            <button class="btn primary" type="button" data-feedback-action="nuova-app" data-feedback-tool="Nuova app ristrutturazione" data-feedback-origin="tab-strumenti">Proponi app</button>
-          </div>
+        <div id="listItems" class="items"></div>
+        <div class="dataActions">
+          <button type="button" id="exportBtn" class="textBtn">Esporta lista</button>
+          <button type="button" id="importBtn" class="textBtn">Importa lista</button>
+          <input type="file" id="importFile" accept=".json,application/json" class="srOnly">
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
 
-  <div id="upgradeModal" class="lockedOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <section class="modal">
-      <div class="modalHead">
-        <div>
-          <h3 id="modalTitle">Attiva Pro</h3>
-          <p>Inserisci la license key ricevuta dopo l’acquisto su Gumroad.</p>
-        </div>
-        <button id="closeModalBtn" class="closeBtn" type="button" aria-label="Chiudi">×</button>
-      </div>
-
-      <div class="field">
-        <label for="licenseKey">License key</label>
-        <input id="licenseKey" type="text" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX">
-      </div>
-
-      <div id="licenseError" class="errorText"></div>
-      <div id="licenseSuccess" class="successText"></div>
-
-      <div class="actions">
-        <button id="activateBtn" class="btn primary" type="button">Attiva Pro</button>
-        <button id="buyBtn" class="btn" type="button">Acquista</button>
-      </div>
-    </section>
+    <footer>Solo sul tuo dispositivo · Esporta una copia dalla tua lista.</footer>
   </div>
 
-  <div id="toast" class="toast" aria-live="polite"></div>
-
-  <div id="bottomUpgrade" class="bottomUpgrade noPrint">
-    <span id="mobileFreeText">3 calcoli rimasti</span>
-    <button id="bottomProBtn" class="btn primary small" type="button">Sblocca Pro</button>
+  <div id="mobileDock" class="mobileDock">
+    <div><small>DA COMPRARE</small><strong id="mobileQty">—</strong></div>
+    <button type="button" id="mobileSaveBtn" class="primaryBtn" disabled>Aggiungi <span aria-hidden="true">↗</span></button>
   </div>
-
-  <script src="./app.js?v=3.4.2"></script>
-  <script>
-    document.addEventListener('click', function(event) {
-      const link = event.target.closest('[data-tab-link]');
-      if (link && window.setTab) window.setTab(link.dataset.tabLink);
-      const upgrade = event.target.closest('[data-upgrade]');
-      if (upgrade && window.showUpgradeModal) window.showUpgradeModal('manual');
-    });
-  </script>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./calc.js?v=4.0.0"></script>
+  <script src="./app.js?v=4.0.0" defer></script>
 </body>
 </html>

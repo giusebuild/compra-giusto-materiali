@@ -1,118 +1,54 @@
-# CompraGiusto Materiali PWA
+# Casa / Materiali
 
-PWA unica Free/Pro con sblocco tramite license key Gumroad.
+**Quanto devi comprare?** Inserisci le misure: l'app calcola confezioni, avanzo e costo e prepara una lista materiali per casa.
 
-## Cosa contiene
+Questa è la sezione **Materiali** di una futura piattaforma modulare per la gestione della casa. Il nome dell'ecosistema “Casa” è provvisorio; l'app resta utilizzabile da sola. Niente account, licenze o pagamenti.
 
-- `index.html`
-- `styles.css`
-- `app.js`
-- `license-public-key.js`
-- `manifest.webmanifest`
-- `sw.js`
-- `icons/`
-- `netlify/functions/verify-license.js`
-- `tools/generate-license-keys.js`
+## Funzionalità
 
-## Avvio locale semplice
+- Piastrelle, pittura, battiscopa/profili, colla/fugante.
+- Misura nota, rettangolo, pareti con aperture da sottrarre, somma di più superfici.
+- Sfrido configurabile; confezioni arrotondate per eccesso; prezzi facoltativi.
+- Lista illimitata con modifica vera, copia, cancellazione e costo complessivo (con indicazione quando mancano prezzi).
+- Dati esclusivamente locali; esportazione e importazione JSON gratuite; PWA offline.
+- Migrazione automatica e non distruttiva degli elementi salvati dalla precedente versione `cg_materiali_v3_state`.
+
+## Avvio
 
 ```bash
 python3 -m http.server 3000
+# Apri http://localhost:3000
 ```
 
-Apri:
-
-```text
-http://localhost:3000
-```
-
-In locale puoi testare UI, calcoli, limite Free, archivio e modal Pro.
-La verifica reale della license key richiede Netlify Functions.
-
-## Genera chiavi licenza
-
-Serve una coppia ECDSA:
+## Test
 
 ```bash
-node tools/generate-license-keys.js --write
+npm test
 ```
 
-Il comando:
-1. stampa `LICENSE_PRIVATE_JWK` da mettere su Netlify;
-2. aggiorna `license-public-key.js` con la public key.
-
-La public key può stare nella PWA. La private key deve stare solo su Netlify.
-
-## Variabili Netlify
-
-Imposta:
-
-```text
-GUMROAD_PRODUCT_ID=il_product_id_gumroad
-LICENSE_PRIVATE_JWK=valore_generato_dal_tool
-GUMROAD_INCREMENT_USES=false
-MAX_LICENSE_USES=0
-LICENSE_CERT_DAYS=3650
-```
-
-Poi redeploy.
-
-## Link Gumroad
-
-In `app.js`, cambia:
-
-```js
-gumroadUrl: 'https://gumroad.com/l/compra-giusto-materiali'
-```
-
-con il tuo link reale.
-
-## Test con Netlify CLI
-
-```bash
-npm install -g netlify-cli
-netlify dev
-```
+Non richiede dipendenze: i test usano il runner integrato di Node.js (18+).
 
 ## Deploy
 
-```bash
-git add .
-git commit -m "Aggiorna CompraGiusto Materiali"
-git push
-```
+Sito statico su Netlify: impostare la directory di pubblicazione alla root (già definita in `netlify.toml`).
+Dopo un aggiornamento dei file statici, aggiornare la versione di cache nel service worker.
 
-Netlify farà il deploy automatico se il repo è collegato.
+## Dati e compatibilità
 
-## Aggiornamenti
+- Chiave principale: `casa_materiali_v4`; i dati della versione precedente vengono letti ma mai cancellati.
+- L'importazione **sostituisce** la lista locale solo dopo conferma esplicita.
+- Svuotare i dati del browser elimina la lista se non è stato esportato un backup.
+- Non carica dati personali su server. Qualunque analytics o sincronizzazione futura richiederà una scelta esplicita.
 
-Ogni update importante cambia versione cache in `sw.js`:
+## Identità
 
-```js
-const CACHE_NAME = 'compra-giusto-materiali-v3-0-1';
-```
+- Brand dell'ecosistema: **Casa** (segnaposto, non validato commercialmente).
+- Modulo: **Materiali**.
+- Promessa: **“Quanto devi comprare?”**
+- Simbolo: quattro riquadri che richiamano materiali/ambienti e una verifica di acquisto.
 
-Altrimenti il service worker può servire file vecchi.
+## Manutenzione
 
-## Form feedback, richieste e strumenti in arrivo
+Niente framework e niente backend: `calc.js` contiene tutta la matematica testabile in isolamento, `app.js` gestisce dati e interfaccia, `styles.css` contiene il design.
 
-Nel tab **Strumenti** ci sono card per prodotti collegati e una sezione **Segnala o richiedi**.
-
-Per collegare un form unico, crea un modulo Tally / Google Form / Typeform con questi campi consigliati:
-
-- tipo richiesta: problema, strumento in arrivo, nuova app, feedback
-- strumento: CompraGiusto Materiali, Cassa Sicura Cantiere, Spese Sotto Controllo, Scelte Finiture, Altro
-- messaggio
-- email
-- priorità
-- fase della ristrutturazione
-
-Poi in `app.js` imposta:
-
-```js
-feedbackUrl: 'https://tally.so/r/TUO_FORM_ID'
-```
-
-I pulsanti **Avvisami**, **Segnala problema** e **Proponi app** apriranno quel form passando alcuni parametri in query string (`tipo`, `strumento`, `origine`).
-
-Se `feedbackUrl` resta vuoto, i pulsanti mostrano un messaggio non bloccante e l'app continua a funzionare.
+Il vecchio flusso Gumroad/Pro è stato rimosso intenzionalmente. Prima di introdurre funzioni ulteriori, validare l'utilizzo con utenti reali.

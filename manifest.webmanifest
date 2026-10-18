@@ -1,12 +1,12 @@
 {
-  "name": "CompraGiusto Materiali",
-  "short_name": "CompraGiusto",
-  "description": "Calcola quantità, confezioni, avanzo e costo prima di comprare materiali per casa.",
+  "name": "Casa · Materiali",
+  "short_name": "Materiali",
+  "description": "Calcola quante confezioni acquistare e prepara la lista materiali.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f6f8fb",
-  "theme_color": "#2563eb",
+  "background_color": "#f7f8f6",
+  "theme_color": "#f7f8f6",
   "icons": [
     {
       "src": "./icons/icon-192.png",
